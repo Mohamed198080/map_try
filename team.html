@@ -22,15 +22,9 @@
 <div class="info-panel">🧭 اضغط على عداد ثم "تم الإنجاز"</div>
 
 <script>
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwCff-wW7exheB2ZXC8kPtUDR3iH4uhBgATc8X9QGlNRJGx0aNdMz3MG-CkxoR3_WNV3g/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw4E7ZFs81Pz_xHBjRJ5B76b0ADRJBMcif_GV9rOCNzNgXxtpC7_GD_2ggsid2cn45T8A/exec';
     let map, markersLayer, currentToken = null;
-    
-    function initMap() {
-        map = L.map('teamMap').setView([27.545, 41.712], 12);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
-        markersLayer = L.layerGroup().addTo(map);
-    }
-    
+    function initMap() { map = L.map('teamMap').setView([27.545,41.712],12); L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map); markersLayer = L.layerGroup().addTo(map); }
     async function loadTeam() {
         const token = new URLSearchParams(location.search).get('token');
         if (!token) { document.getElementById('teamName').innerText = 'رابط غير صالح'; return; }
@@ -43,36 +37,21 @@
         const pending = data.meters.filter(m => m.teamId === team.id && m.status === 'pending');
         document.getElementById('statsRemaining').innerText = `📋 المتبقية: ${pending.length}`;
         markersLayer.clearLayers();
-        if (team.polygonCoords?.length>2) {
-            const latlngs = team.polygonCoords.map(p => [p.lat, p.lng]);
-            L.polygon(latlngs, { color: '#f1c40f', weight: 3, fillColor: '#f39c12', fillOpacity: 0.2 }).addTo(markersLayer);
-        }
+        if (team.polygonCoords?.length>2) L.polygon(team.polygonCoords.map(p=>[p.lat,p.lng]), { color:'#f1c40f', weight:3, fillColor:'#f39c12', fillOpacity:0.2 }).addTo(markersLayer);
         for (let m of pending) {
-            let color = m.action === 'lock' ? '#e74c3c' : m.action === 'unlock' ? '#2ecc71' : '#f39c12';
-            const marker = L.circleMarker([m.lat, m.lng], { radius: 12, fillColor: color, color: '#fff', weight: 2, fillOpacity: 0.9 }).addTo(markersLayer);
+            let color = m.action==='lock'?'#e74c3c':m.action==='unlock'?'#2ecc71':'#f39c12';
+            const marker = L.circleMarker([m.lat,m.lng], { radius:12, fillColor:color, color:'#fff', weight:2, fillOpacity:0.9 }).addTo(markersLayer);
             const actionAr = { lock:'قفل', unlock:'فتح', sticker:'ملصق' }[m.action];
-            marker.bindPopup(`
-                <div style="text-align:center">
-                    <strong>العداد: ${m.meterId}</strong><br>
-                    الإجراء: ${actionAr}<br>
-                    <button onclick="completeMeter('${m.id}')">✅ تم الإنجاز</button>
-                    <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${m.lat},${m.lng}')">🧭 التنقل</button>
-                </div>
-            `);
+            marker.bindPopup(`<div style="text-align:center"><strong>العداد: ${m.meterId}</strong><br>الإجراء: ${actionAr}<br><button onclick="completeMeter('${m.id}')">✅ تم الإنجاز</button><button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${m.lat},${m.lng}')">🧭 التنقل</button></div>`);
         }
     }
-    
     window.completeMeter = async (meterId) => {
         if (!confirm('إتمام المهمة؟')) return;
         const res = await fetch(`${SCRIPT_URL}?action=completeMeter&meterId=${meterId}&teamToken=${currentToken}`);
         const result = await res.json();
-        if (result.success) { alert('تم'); loadTeam(); }
-        else alert('فشل');
+        if (result.success) { alert('تم'); loadTeam(); } else alert('فشل');
     };
-    
-    initMap();
-    loadTeam();
-    setInterval(loadTeam, 8000);
+    initMap(); loadTeam(); setInterval(loadTeam, 8000);
 </script>
 </body>
 </html>
