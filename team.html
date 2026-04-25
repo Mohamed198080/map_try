@@ -2,18 +2,15 @@
 <html dir="rtl" lang="ar">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>خريطة الفريق - نظام إدارة العدادات</title>
+    <title>خريطة الفريق</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1e272e; }
-        .header { background: #006266; color: white; padding: 15px 20px; text-align: center; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
-        .stats { background: #3c6382; padding: 8px 15px; border-radius: 30px; font-size: 0.9rem; }
-        .map-container { height: calc(100vh - 80px); width: 100%; }
-        .info-panel { position: fixed; bottom: 20px; left: 20px; background: rgba(0,0,0,0.7); color: white; padding: 8px 15px; border-radius: 8px; z-index: 1000; font-size: 12px; pointer-events: none; }
-        button { background: #0984e3; border: none; color: white; padding: 5px 12px; border-radius: 20px; cursor: pointer; margin-top: 5px; }
-        button:hover { background: #74b9ff; }
+        body { margin:0; font-family: 'Segoe UI'; background:#1e272e; }
+        .header { background:#006266; color:white; padding:15px; display:flex; justify-content:space-between; }
+        .map-container { height: calc(100vh - 80px); width:100%; }
+        .info-panel { position:fixed; bottom:20px; left:20px; background:rgba(0,0,0,0.7); color:white; padding:8px 15px; border-radius:8px; }
+        button { background:#0984e3; border:none; color:white; padding:5px 12px; border-radius:20px; cursor:pointer; }
     </style>
 </head>
 <body>
@@ -22,109 +19,60 @@
     <div class="stats" id="statsRemaining">المهام المتبقية: --</div>
 </div>
 <div id="teamMap" class="map-container"></div>
-<div class="info-panel">🧭 اضغط على أي عداد ثم "تم الإنجاز" بعد إتمام المهمة</div>
+<div class="info-panel">🧭 اضغط على عداد ثم "تم الإنجاز"</div>
 
 <script>
-    // ================== رابط Google Apps Script ==================
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw4E7ZFs81Pz_xHBjRJ5B76b0ADRJBMcif_GV9rOCNzNgXxtpC7_GD_2ggsid2cn45T8A/exec';
-    
-    let map, markersLayer, currentTeamToken = null, currentTeamId = null;
+    let map, markersLayer, currentToken = null;
     
     function initMap() {
         map = L.map('teamMap').setView([27.545, 41.712], 12);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: 'Map data &copy; OpenStreetMap'
-        }).addTo(map);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
         markersLayer = L.layerGroup().addTo(map);
     }
     
-    async function getTeamData() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const token = urlParams.get('token');
-        if (!token) {
-            document.getElementById('teamName').innerText = 'رابط غير صالح';
-            document.getElementById('statsRemaining').innerText = 'يوجد خطأ في الرابط';
-            return null;
-        }
-        currentTeamToken = token;
-        try {
-            const response = await fetch(`${SCRIPT_URL}?action=getManagerData`);
-            const data = await response.json();
-            const team = data.teams.find(t => t.token === token);
-            if (!team) {
-                document.getElementById('teamName').innerText = 'فريق غير موجود';
-                return null;
-            }
-            currentTeamId = team.id;
-            document.getElementById('teamName').innerText = team.name;
-            const pendingMeters = data.meters.filter(m => m.teamId === team.id && m.status === 'pending');
-            return { team, pendingMeters, allMeters: data.meters };
-        } catch (err) {
-            console.error(err);
-            document.getElementById('teamName').innerText = 'خطأ في الاتصال';
-            return null;
-        }
-    }
-    
-    async function refreshMap() {
-        const result = await getTeamData();
-        if (!result) return;
-        const { team, pendingMeters } = result;
-        document.getElementById('statsRemaining').innerText = `📋 المهام المتبقية: ${pendingMeters.length}`;
+    async function loadTeam() {
+        const token = new URLSearchParams(location.search).get('token');
+        if (!token) { document.getElementById('teamName').innerText = 'رابط غير صالح'; return; }
+        currentToken = token;
+        const res = await fetch(`${SCRIPT_URL}?action=getManagerData`);
+        const data = await res.json();
+        const team = data.teams.find(t => t.token === token);
+        if (!team) { document.getElementById('teamName').innerText = 'فريق غير موجود'; return; }
+        document.getElementById('teamName').innerText = team.name;
+        const pending = data.meters.filter(m => m.teamId === team.id && m.status === 'pending');
+        document.getElementById('statsRemaining').innerText = `📋 المتبقية: ${pending.length}`;
         markersLayer.clearLayers();
-        
-        // رسم حدود الفريق
-        if (team.polygonCoords && team.polygonCoords.length > 2) {
+        if (team.polygonCoords?.length>2) {
             const latlngs = team.polygonCoords.map(p => [p.lat, p.lng]);
-            L.polygon(latlngs, { color: '#f1c40f', weight: 3, fillColor: '#f39c12', fillOpacity: 0.2 }).addTo(markersLayer)
-                .bindPopup(`<b>${team.name}</b><br>نطاق مسؤوليتك`);
+            L.polygon(latlngs, { color: '#f1c40f', weight: 3, fillColor: '#f39c12', fillOpacity: 0.2 }).addTo(markersLayer);
         }
-        
-        // رسم العدادات المعلقة
-        for (let meter of pendingMeters) {
-            let color = '#95a5a6';
-            if (meter.action === 'lock') color = '#e74c3c';
-            else if (meter.action === 'unlock') color = '#2ecc71';
-            else if (meter.action === 'sticker') color = '#f39c12';
-            const marker = L.circleMarker([meter.lat, meter.lng], {
-                radius: 12, fillColor: color, color: '#fff', weight: 2, fillOpacity: 0.9
-            }).addTo(markersLayer);
-            let actionAr = { lock:'🔒 قفل', unlock:'🔓 فتح', sticker:'🏷️ ملصق' }[meter.action];
-            const btnId = `complete_${meter.id}`;
+        for (let m of pending) {
+            let color = m.action === 'lock' ? '#e74c3c' : m.action === 'unlock' ? '#2ecc71' : '#f39c12';
+            const marker = L.circleMarker([m.lat, m.lng], { radius: 12, fillColor: color, color: '#fff', weight: 2, fillOpacity: 0.9 }).addTo(markersLayer);
+            const actionAr = { lock:'قفل', unlock:'فتح', sticker:'ملصق' }[m.action];
             marker.bindPopup(`
-                <div style="text-align:center; min-width:180px;">
-                    <strong>🚦 العداد: ${meter.meterId}</strong><br>
-                    🛠️ ${actionAr}<br>
-                    <button id="${btnId}" style="background:#27ae60;">✅ تم الإنجاز</button>
-                    <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')" style="background:#2980b9;">🧭 التنقل</button>
+                <div style="text-align:center">
+                    <strong>العداد: ${m.meterId}</strong><br>
+                    الإجراء: ${actionAr}<br>
+                    <button onclick="completeMeter('${m.id}')">✅ تم الإنجاز</button>
+                    <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${m.lat},${m.lng}')">🧭 التنقل</button>
                 </div>
             `);
-            marker.on('popupopen', () => {
-                const btn = document.getElementById(btnId);
-                if (btn) btn.onclick = () => completeMeter(meter.id);
-            });
         }
     }
     
-    async function completeMeter(meterId) {
-        if (!confirm('هل أنهيت المهمة على هذا العداد؟ سيتم حذفه من خريطتك.')) return;
-        try {
-            const response = await fetch(`${SCRIPT_URL}?action=completeMeter&meterId=${meterId}&teamToken=${currentTeamToken}`);
-            const result = await response.json();
-            if (result.success) {
-                alert('✅ تم تسجيل الإنجاز بنجاح');
-                refreshMap();
-            } else {
-                alert('❌ فشل الإنجاز: ' + (result.error || 'غير مصرح'));
-            }
-        } catch (err) {
-            alert('خطأ في الاتصال بالخادم');
-        }
-    }
+    window.completeMeter = async (meterId) => {
+        if (!confirm('إتمام المهمة؟')) return;
+        const res = await fetch(`${SCRIPT_URL}?action=completeMeter&meterId=${meterId}&teamToken=${currentToken}`);
+        const result = await res.json();
+        if (result.success) { alert('تم'); loadTeam(); }
+        else alert('فشل');
+    };
     
     initMap();
-    refreshMap();
-    setInterval(refreshMap, 8000);
+    loadTeam();
+    setInterval(loadTeam, 8000);
 </script>
 </body>
 </html>
