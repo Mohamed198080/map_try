@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>خريطة الفريق - نظام Google Sheets</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body { margin: 0; font-family: 'Segoe UI'; background: #1e272e; }
+        .header { background: #006266; color: white; padding: 15px; text-align: center; display: flex; justify-content: space-between; }
+        .stats { background: #3c6382; padding: 8px 15px; border-radius: 30px; }
+        .map-container { height: calc(100vh - 80px); width: 100%; }
+        .info-panel { position: fixed; bottom: 20px; left: 20px; background: rgba(0,0,0,0.7); color: white; padding: 8px 15px; border-radius: 8px; z-index: 1000; font-size: 12px; }
+        button { background: #0984e3; border: none; color: white; padding: 5px 12px; border-radius: 20px; cursor: pointer; margin-top: 5px; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <h2>📍 فريق: <span id="teamName">...</span></h2>
+    <div class="stats" id="statsRemaining">المهام المتبقية: --</div>
+</div>
+<div id="teamMap" class="map-container"></div>
+<div class="info-panel">🧭 اضغط على عداد ثم "تم الإنجاز" بعد إتمام المهمة</div>
+
+<script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/你的_Apps_Script_ID/exec';
+    let map, markersLayer, currentTeam = null, teamToken = null;
+    
+    async function getTeamData() {
+        const params = new URLSearchParams(window.location.search);
+        teamToken = params.get('token');
+        if (!teamToken) { document.getElementById('teamName').innerText = 'رابط غير صالح'; return null; }
+        const data = await fetch(`${SCRIPT_URL}?action=getManagerData`).then(r=>r.json());
+        const team = data.teams.find(t => t.token === teamToken);
+        if (!team) { document.getElementById('teamName').innerText = 'فريق غير موجود'; return null; }
+        document.getElementById('teamName').innerText = team.name;
+        const pendingMeters = data.meters.filter(m => m.teamId === team.id && m.status === 'pending');
+        return { team, pendingMeters, allMeters: data.meters };
+    }
+    
+    function initMap() {
+        map = L.map('teamMap').setView([27.545, 41.712], 12);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OSM' }).addTo(map);
+        markersLayer = L.layerGroup().addTo(map);
+    }
+    
+    async function refreshTeamUI() {
+        const result = await getTeamData();
+        if (!result) return;
+        const { team, pendingMeters, allMeters } = result;
+        currentTeam = team;
+        document.getElementById('statsRemaining').innerText = `📋 المهام المتبقية: ${pendingMeters.length}`;
+        markersLayer.clearLayers();
+        // رسم حدود الفريق
+        if (team.polygonCoords && team.polygonCoords.length > 2) {
+            const latlngs = team.polygonCoords.map(p => [p.lat, p.lng]);
+            L.polygon(latlngs, { color: '#f1c40f', weight: 3, fillColor: '#f39c12', fillOpacity: 0.2 }).addTo(markersLayer)
+                .bindPopup(`<b>${team.name}</b><br>نطاق مسؤوليتك`);
+        }
+        // رسم العدادات المعلقة
+        for (let meter of pendingMeters) {
+            let color = { lock:'#e74c3c', unlock:'#2ecc71', sticker:'#f39c12' }[meter.action] || '#95a5a6';
+            const marker = L.circleMarker([meter.lat, meter.lng], {
+                radius: 12, fillColor: color, color: '#fff', weight: 2, fillOpacity: 0.9
+            }).addTo(markersLayer);
+            let actionAr = { lock:'🔒 قفل', unlock:'🔓 فتح', sticker:'🏷️ ملصق' }[meter.action];
+            const btnId = `btn_${meter.id}`;
+            marker.bindPopup(`
+                <div style="text-align:center">
+                    <strong>🚦 العداد: ${meter.meterId}</strong><br>
+                    🛠️ ${actionAr}<br>
+                    <button id="${btnId}" style="background:#27ae60;">✅ تم الإنجاز</button>
+                    <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')">🧭 التنقل</button>
+                </div>
+            `);
+            marker.on('popupopen', () => {
+                document.getElementById(btnId)?.addEventListener('click', () => completeMeter(meter.id));
+            });
+        }
+    }
+    
+    async function completeMeter(meterId) {
+        if (!confirm('هل أكملت هذه المهمة؟')) return;
+        const response = await fetch(`${SCRIPT_URL}?action=completeMeter&meterId=${meterId}&teamToken=${teamToken}`);
+        const result = await response.json();
+        if (result.success) {
+            alert('✅ تم تسجيل الإنجاز');
+            refreshTeamUI();
+        } else {
+            alert('❌ فشل: ' + (result.error || 'غير مصرح'));
+        }
+    }
+    
+    initMap();
+    refreshTeamUI();
+    setInterval(refreshTeamUI, 7000);
+</script>
+</body>
+</html>
