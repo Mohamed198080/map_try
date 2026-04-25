@@ -163,12 +163,30 @@
             margin-top: 30px;
             color: #7f8c8d;
         }
+        /* تنسيق أيقونة عرض رقم العداد */
+        .meter-icon {
+            background: transparent;
+            border: none;
+            text-align: center;
+            font-weight: bold;
+            font-size: 12px;
+            line-height: 20px;
+            width: 40px !important;
+            height: 40px !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            color: white;
+            text-shadow: 0 0 2px black;
+            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <h1>📊 مدير النظام - التوزيع الجغرافي للعدادات</h1>
+        <h1>📊 مدير النظام - التوزيع الجغرافي للعدادات (مع أرقام العدادات)</h1>
         <div>
             <button onclick="refreshData()">🔄 تحديث</button>
             <button onclick="exportToExcel()" style="background:#27ae60;">📎 تنزيل تقرير Excel</button>
@@ -212,23 +230,21 @@
                 <tr><th>اســم الفرقــة</th><th>العدادات الكلية</th><th>تم إنجازها</th><th>المتبقية</th><th>الرابط</th></tr>
             </thead>
             <tbody></tbody>
-         </table>
+          </table>
     </div>
 
     <div class="log-area" id="logArea">📋 سجل العمليات...</div>
-    <div class="footer">✅ انقر على أي عداد في الخريطة لرؤية التفاصيل | يتم التحديث تلقائياً كل 10 ثوانٍ</div>
+    <div class="footer">✅ تظهر أرقام العدادات على الخريطة مباشرة | يتم التحديث تلقائياً كل 10 ثوانٍ</div>
 </div>
 
 <script>
-    // ================== رابط Google Apps Script (تم تثبيته) ==================
+    // ================== رابط Google Apps Script ==================
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw4E7ZFs81Pz_xHBjRJ5B76b0ADRJBMcif_GV9rOCNzNgXxtpC7_GD_2ggsid2cn45T8A/exec';
     
-    // ================== المتغيرات العالمية ==================
     let map;
     let markersLayer;
     let polygonLayer;
 
-    // ================== دالة التسجيل (log) ==================
     function log(msg) {
         const logDiv = document.getElementById('logArea');
         const time = new Date().toLocaleTimeString('ar-EG');
@@ -237,7 +253,7 @@
         console.log(msg);
     }
 
-    // ================== دالة ذكية لتحديد الإجراء من النص ==================
+    // دالة ذكية لتحديد الإجراء من النص
     function detectAction(text) {
         if (!text) return 'unknown';
         const str = text.toString().trim().toLowerCase();
@@ -247,7 +263,26 @@
         return 'unknown';
     }
 
-    // ================== قراءة ملف البيانات (CSV أو Excel) بشكل مرن ==================
+    // دالة إنشاء أيقونة مخصصة تعرض رقم العداد بلون الخلفية حسب الإجراء والحالة
+    function getMeterIcon(meter) {
+        let bgColor = '#95a5a6'; // رمادي افتراضي
+        if (meter.status === 'completed') {
+            bgColor = '#bdc3c7'; // رمادي فاتح للمنجز
+        } else {
+            if (meter.action === 'lock') bgColor = '#e74c3c'; // أحمر لقفل
+            else if (meter.action === 'unlock') bgColor = '#2ecc71'; // أخضر لفتح
+            else if (meter.action === 'sticker') bgColor = '#f39c12'; // برتقالي لملصق
+        }
+        return L.divIcon({
+            className: 'meter-icon',
+            html: `<div style="background-color: ${bgColor}; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5); font-weight: bold; font-size: 12px; color: white; text-shadow: 0 0 2px black;">${meter.meterId.length > 4 ? meter.meterId.slice(0,6) : meter.meterId}</div>`,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18],
+            popupAnchor: [0, -18]
+        });
+    }
+
+    // قراءة ملف البيانات (CSV أو Excel) بشكل مرن
     async function parseDataFile(file) {
         return new Promise((resolve, reject) => {
             const ext = file.name.split('.').pop().toLowerCase();
@@ -262,10 +297,9 @@
                         return;
                     }
                     const firstLine = lines[0];
-                    // التحقق مما إذا كان الصف الأول يحتوي على عناوين (يحتوي على أحرف وليس فقط أرقام وفواصل)
                     const hasHeaders = !firstLine.match(/^[\d\.\,\"\s\-]+$/);
                     let startIdx = 0;
-                    let colIdx = { id: 0, lat: 1, lng: 2, action: 3 }; // الترتيب الافتراضي
+                    let colIdx = { id: 0, lat: 1, lng: 2, action: 3 };
                     if (hasHeaders) {
                         const headers = firstLine.split(',').map(h => h.trim().replace(/["']/g, '').toLowerCase());
                         log(`عناوين CSV: ${headers.join(', ')}`);
@@ -280,24 +314,16 @@
                     } else {
                         log("لا توجد عناوين، سيتم افتراض الترتيب: meter_id, lat, lng, action");
                     }
-                    log(`ترتيب الأعمدة المستخدم: ID=${colIdx.id}, Lat=${colIdx.lat}, Lng=${colIdx.lng}, Action=${colIdx.action}`);
-                    
+                    log(`ترتيب الأعمدة: ID=${colIdx.id}, Lat=${colIdx.lat}, Lng=${colIdx.lng}, Action=${colIdx.action}`);
                     for (let i = startIdx; i < lines.length; i++) {
                         const line = lines[i].trim();
                         if (line === "") continue;
-                        // تقسيم مع مراعاة علامات التنصيص
                         let parts = [];
-                        let inQuote = false;
-                        let current = '';
+                        let inQuote = false, current = '';
                         for (let ch of line) {
-                            if (ch === '"') {
-                                inQuote = !inQuote;
-                            } else if (ch === ',' && !inQuote) {
-                                parts.push(current.trim());
-                                current = '';
-                            } else {
-                                current += ch;
-                            }
+                            if (ch === '"') inQuote = !inQuote;
+                            else if (ch === ',' && !inQuote) { parts.push(current.trim()); current = ''; }
+                            else current += ch;
                         }
                         parts.push(current.trim());
                         if (parts.length < 3) continue;
@@ -317,7 +343,7 @@
                                 completedAt: null,
                                 teamId: null
                             });
-                            log(`✅ قراءة عداد: ${meterId} (${lat}, ${lng}) الإجراء=${action} (النص الأصلي: ${actionRaw})`);
+                            log(`✅ قراءة عداد: ${meterId} (${lat}, ${lng}) الإجراء=${action}`);
                         } else {
                             log(`⚠️ تخطي صف غير صالح: ${line.substring(0, 60)}`);
                         }
@@ -380,17 +406,13 @@
                 resolve(meters);
             };
             reader.onerror = () => reject(new Error('فشل قراءة الملف: ' + reader.error.message));
-            if (ext === 'csv') {
-                reader.readAsText(file, 'UTF-8');
-            } else if (ext === 'xlsx') {
-                reader.readAsArrayBuffer(file);
-            } else {
-                reject(new Error('امتداد غير مدعوم: ' + ext));
-            }
+            if (ext === 'csv') reader.readAsText(file, 'UTF-8');
+            else if (ext === 'xlsx') reader.readAsArrayBuffer(file);
+            else reject(new Error('امتداد غير مدعوم: ' + ext));
         });
     }
 
-    // ================== تحليل ملف KML وجمع المضلعات ==================
+    // تحليل ملف KML
     async function parseKMLFile(file, swapCoords) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -403,45 +425,33 @@
                 for (let pm of placemarks) {
                     let name = pm.getElementsByTagName('name')[0]?.textContent || 'منطقة بدون اسم';
                     let coords = [];
-                    // محاولة استخراج Polygon مباشرة
                     let polygonNode = pm.getElementsByTagName('Polygon')[0];
                     if (polygonNode) {
                         let coordStr = polygonNode.getElementsByTagName('coordinates')[0]?.textContent.trim();
-                        if (coordStr) {
-                            coords = parseKMLCoords(coordStr, swapCoords);
-                        }
+                        if (coordStr) coords = parseKMLCoords(coordStr, swapCoords);
                     } else {
-                        // قد يكون داخل MultiGeometry
                         let multiGeom = pm.getElementsByTagName('MultiGeometry')[0];
                         if (multiGeom) {
                             let polygonsNodes = multiGeom.getElementsByTagName('Polygon');
                             for (let pg of polygonsNodes) {
                                 let coordStr = pg.getElementsByTagName('coordinates')[0]?.textContent.trim();
-                                if (coordStr) {
-                                    coords.push(...parseKMLCoords(coordStr, swapCoords));
-                                }
+                                if (coordStr) coords.push(...parseKMLCoords(coordStr, swapCoords));
                             }
                         }
                     }
                     if (coords.length > 0) {
                         polygons.push({ name: name, coords: coords });
                         log(`📍 تم العثور على مضلع: "${name}" بعدد نقاط ${coords.length}`);
-                    } else {
-                        log(`⚠️ لم يتم العثور على إحداثيات صالحة في Placemark: ${name}`);
                     }
                 }
-                if (polygons.length === 0) {
-                    reject(new Error('لم يتم العثور على أي مضلعات صالحة في ملف KML'));
-                } else {
-                    resolve(polygons);
-                }
+                if (polygons.length === 0) reject(new Error('لم يتم العثور على مضلعات صالحة في KML'));
+                else resolve(polygons);
             };
-            reader.onerror = () => reject(new Error('فشل قراءة ملف KML: ' + reader.error.message));
+            reader.onerror = () => reject(new Error('فشل قراءة KML: ' + reader.error.message));
             reader.readAsText(file);
         });
     }
 
-    // تحويل سلسلة الإحداثيات من KML إلى مصفوفة من {lat, lng}
     function parseKMLCoords(coordStr, swap) {
         const points = coordStr.trim().split(/\s+/);
         return points.map(p => {
@@ -449,46 +459,32 @@
             if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
                 let lng = parts[0];
                 let lat = parts[1];
-                if (swap) {
-                    // تبديل الإحداثيات إذا كان الخيار محدداً
-                    let temp = lat;
-                    lat = lng;
-                    lng = temp;
-                }
+                if (swap) { let temp = lat; lat = lng; lng = temp; }
                 return { lat: lat, lng: lng };
             }
             return null;
         }).filter(p => p !== null);
     }
 
-    // ================== دالة التحقق من وجود نقطة داخل مضلع (Ray Casting) ==================
     function isPointInPolygon(point, polygon) {
-        let x = point.lng;
-        let y = point.lat;
-        let inside = false;
+        let x = point.lng, y = point.lat, inside = false;
         for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-            let xi = polygon[i].lng;
-            let yi = polygon[i].lat;
-            let xj = polygon[j].lng;
-            let yj = polygon[j].lat;
+            let xi = polygon[i].lng, yi = polygon[i].lat;
+            let xj = polygon[j].lng, yj = polygon[j].lat;
             let intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
             if (intersect) inside = !inside;
         }
         return inside;
     }
 
-    // ================== توزيع العدادات على الفرق بناءً على المضلعات ==================
     function assignMetersToTeams(meters, polygons) {
-        // إنشاء فريق لكل مضلع
-        let teams = polygons.map((poly, idx) => {
-            return {
-                id: crypto.randomUUID(),
-                token: Math.random().toString(36).substring(2, 12),
-                name: poly.name || `الفرقة ${idx + 1}`,
-                polygonCoords: poly.coords,
-                meterIds: []
-            };
-        });
+        let teams = polygons.map((poly, idx) => ({
+            id: crypto.randomUUID(),
+            token: Math.random().toString(36).substring(2, 12),
+            name: poly.name || `الفرقة ${idx + 1}`,
+            polygonCoords: poly.coords,
+            meterIds: []
+        }));
         let assignedCount = 0;
         for (let meter of meters) {
             let found = false;
@@ -502,7 +498,6 @@
                 }
             }
             if (!found) {
-                // إنشاء فريق افتراضي "خارج المناطق" إن لم يوجد
                 let defaultTeam = teams.find(t => t.name === 'خارج المناطق');
                 if (!defaultTeam) {
                     defaultTeam = {
@@ -518,13 +513,11 @@
                 meter.teamId = defaultTeam.id;
             }
         }
-        // إزالة الفرق التي ليس لديها أي عدادات (باستثناء فريق خارج المناطق إذا وجد)
         teams = teams.filter(t => t.meterIds.length > 0);
-        log(`✅ تم توزيع ${assignedCount} عداد داخل مضلعات محددة، و ${meters.length - assignedCount} عداد خارج جميع المضلعات.`);
+        log(`✅ توزيع: ${assignedCount} داخل المضلعات، ${meters.length - assignedCount} خارجها`);
         return { teams, meters };
     }
 
-    // ================== حفظ البيانات في Google Sheets ==================
     async function saveToGoogleSheets(teams, meters) {
         const payload = new URLSearchParams({
             action: 'uploadData',
@@ -532,56 +525,33 @@
             teamsJson: JSON.stringify(teams)
         }).toString();
         try {
-            const response = await fetch(SCRIPT_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: payload
-            });
+            const response = await fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: payload });
             const result = await response.json();
-            if (result.success) {
-                log('✅ تم حفظ البيانات في Google Sheets بنجاح.');
-                return true;
-            } else {
-                log('❌ فشل حفظ البيانات في Google Sheets: ' + JSON.stringify(result));
-                return false;
-            }
-        } catch (error) {
-            log('❌ خطأ في الاتصال بـ Google Sheets أثناء الحفظ: ' + error.message);
-            return false;
-        }
+            if (result.success) { log('✅ حفظ في Google Sheets'); return true; }
+            else { log('❌ فشل الحفظ: ' + JSON.stringify(result)); return false; }
+        } catch (error) { log('❌ خطأ في الحفظ: ' + error.message); return false; }
     }
 
-    // ================== تحميل البيانات من Google Sheets ==================
     async function loadFromGoogleSheets() {
         try {
             const response = await fetch(`${SCRIPT_URL}?action=getManagerData`);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const data = await response.json();
             if (data && data.meters && data.teams) {
-                log(`✅ تم تحميل ${data.meters.length} عداد و ${data.teams.length} فريق من Google Sheets.`);
+                log(`✅ تم تحميل ${data.meters.length} عداد و ${data.teams.length} فريق`);
                 return data;
-            } else {
-                log('⚠️ استجابة غير متوقعة من Google Sheets أو لا توجد بيانات.');
-                return null;
-            }
-        } catch (error) {
-            log('⚠️ فشل تحميل البيانات من Google Sheets: ' + error.message);
-            return null;
-        }
+            } else return null;
+        } catch (error) { log('⚠️ فشل تحميل البيانات: ' + error.message); return null; }
     }
 
-    // ================== دوال الخريطة والواجهة ==================
     function initMap() {
         map = L.map('managerMap').setView([27.545, 41.712], 12);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-        }).addTo(map);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OSM' }).addTo(map);
         markersLayer = L.layerGroup().addTo(map);
         polygonLayer = L.layerGroup().addTo(map);
     }
 
+    // تحديث الخريطة باستخدام L.marker مع أيقونة تحوي الرقم
     function updateMap(teams, meters) {
         markersLayer.clearLayers();
         polygonLayer.clearLayers();
@@ -589,29 +559,14 @@
         for (let team of teams) {
             if (team.polygonCoords && team.polygonCoords.length > 2) {
                 const latlngs = team.polygonCoords.map(p => [p.lat, p.lng]);
-                const polygon = L.polygon(latlngs, {
-                    color: '#2c3e50',
-                    weight: 2,
-                    fillColor: '#3498db',
-                    fillOpacity: 0.1
-                }).addTo(polygonLayer);
-                polygon.bindPopup(`<b>${team.name}</b><br>العدادات: ${team.meterIds.length}`);
+                L.polygon(latlngs, { color: '#2c3e50', weight: 2, fillColor: '#3498db', fillOpacity: 0.1 }).addTo(polygonLayer)
+                    .bindPopup(`<b>${team.name}</b><br>العدادات: ${team.meterIds.length}`);
             }
         }
-        // رسم العدادات
+        // رسم العدادات بأيقونات تحتوي على الرقم
         for (let meter of meters) {
-            let color = '#95a5a6';
-            if (meter.action === 'lock') color = '#e74c3c';
-            else if (meter.action === 'unlock') color = '#2ecc71';
-            else if (meter.action === 'sticker') color = '#f39c12';
-            if (meter.status === 'completed') color = '#bdc3c7';
-            const marker = L.circleMarker([meter.lat, meter.lng], {
-                radius: meter.status === 'completed' ? 6 : 10,
-                fillColor: color,
-                color: '#fff',
-                weight: 2,
-                fillOpacity: 0.8
-            }).addTo(markersLayer);
+            const icon = getMeterIcon(meter);
+            const marker = L.marker([meter.lat, meter.lng], { icon: icon }).addTo(markersLayer);
             let actionText = '';
             if (meter.action === 'lock') actionText = 'قفل';
             else if (meter.action === 'unlock') actionText = 'فتح';
@@ -645,7 +600,6 @@
     function updateTeamsTable(teams, meters) {
         const tbody = document.querySelector('#teamsTable tbody');
         tbody.innerHTML = '';
-        // بناء الرابط الأساسي لملف team.html في نفس المسار
         const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
         for (let team of teams) {
             const teamMeters = meters.filter(m => m.teamId === team.id);
@@ -681,49 +635,42 @@
             msgDiv.innerHTML = '<span style="color:red;">❌ الرجاء اختيار ملف البيانات وملف KML</span>';
             return;
         }
-        msgDiv.innerHTML = '⏳ جاري المعالجة والتوزيع...';
-        log('بدء عملية رفع الملفات وتوزيع العدادات...');
+        msgDiv.innerHTML = '⏳ جاري المعالجة...';
+        log('بدء رفع الملفات...');
         try {
             const meters = await parseDataFile(dataFile);
             const polygons = await parseKMLFile(kmlFile, swapCoords);
-            if (meters.length === 0) throw new Error('لا توجد عدادات صالحة في ملف البيانات.');
-            if (polygons.length === 0) throw new Error('لا توجد مضلعات صالحة في ملف KML.');
-            const { teams, meters: assignedMeters } = assignMetersToTeams(meters, polygons);
-            const saved = await saveToGoogleSheets(teams, assignedMeters);
+            if (meters.length === 0) throw new Error('لا توجد عدادات صالحة');
+            if (polygons.length === 0) throw new Error('لا توجد مضلعات صالحة');
+            const { teams, meters: assigned } = assignMetersToTeams(meters, polygons);
+            const saved = await saveToGoogleSheets(teams, assigned);
             if (saved) {
-                msgDiv.innerHTML = `<span style="color:green;">✅ تم التوزيع والحفظ في Google Sheets بنجاح! (${teams.length} فرقة، ${assignedMeters.length} عداد)</span>`;
-                await refreshData();
+                msgDiv.innerHTML = `<span style="color:green;">✅ تم الحفظ في Google Sheets (${teams.length} فرقة)</span>`;
+                refreshData();
             } else {
-                msgDiv.innerHTML = `<span style="color:orange;">⚠️ تم التوزيع محلياً ولكن فشل الحفظ في Google Sheets. البيانات معروضة مؤقتاً.</span>`;
-                updateMap(teams, assignedMeters);
-                updateStats(teams, assignedMeters);
-                updateTeamsTable(teams, assignedMeters);
+                msgDiv.innerHTML = `<span style="color:orange;">⚠️ تم التوزيع محلياً لكن فشل الحفظ</span>`;
+                updateMap(teams, assigned);
+                updateStats(teams, assigned);
+                updateTeamsTable(teams, assigned);
             }
-        } catch (error) {
-            msgDiv.innerHTML = `<span style="color:red;">❌ خطأ: ${error.message}</span>`;
-            log('خطأ: ' + error.message);
+        } catch (err) {
+            msgDiv.innerHTML = `<span style="color:red;">❌ ${err.message}</span>`;
+            log(err.message);
         }
     }
 
     async function exportToExcel() {
         const data = await loadFromGoogleSheets();
-        if (!data || !data.meters) {
-            alert('لا توجد بيانات لتصديرها. يرجى رفع ملفات أولاً.');
-            return;
-        }
+        if (!data || !data.meters) { alert('لا توجد بيانات'); return; }
         const rows = data.meters.map(m => {
-            let actionAr = '';
-            if (m.action === 'lock') actionAr = 'قفل';
-            else if (m.action === 'unlock') actionAr = 'فتح';
-            else if (m.action === 'sticker') actionAr = 'وضع ملصق';
-            else actionAr = m.action;
+            let actionAr = { lock:'قفل', unlock:'فتح', sticker:'ملصق' }[m.action] || m.action;
             return {
                 'رقم العداد': m.meterId,
-                'خط العرض (lat)': m.lat,
-                'خط الطول (lng)': m.lng,
+                'خط العرض': m.lat,
+                'خط الطول': m.lng,
                 'الإجراء': actionAr,
                 'الحالة': m.status === 'completed' ? 'تم' : 'قيد الانتظار',
-                'وقت الإنجاز': m.completedAt ? new Date(m.completedAt).toLocaleString() : '',
+                'وقت الإنجاز': m.completedAt || '',
                 'الفرقة': data.teams.find(t => t.id === m.teamId)?.name || ''
             };
         });
@@ -731,13 +678,12 @@
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'تقرير العدادات');
         XLSX.writeFile(wb, `meter_report_${new Date().toISOString().slice(0,19)}.xlsx`);
-        log('📎 تم تصدير تقرير Excel بنجاح');
+        log('📎 تم تصدير التقرير');
     }
 
-    // ================== بدء التطبيق ==================
     initMap();
     refreshData();
-    setInterval(refreshData, 10000); // تحديث تلقائي كل 10 ثوانٍ
+    setInterval(refreshData, 10000);
 </script>
 </body>
 </html>
