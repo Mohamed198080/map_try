@@ -3,225 +3,209 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مدير النظام - مع Google Sheets</title>
+    <title>مدير التوزيع الجغرافي (نسخة تصحيح)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background: #f0f2f5; padding: 20px; }
-        .container { max-width: 1400px; margin: 0 auto; }
-        .header { background: #2c3e50; color: white; padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
-        .upload-area { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        .upload-form { display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; }
-        .form-group { display: flex; flex-direction: column; gap: 5px; }
-        button { background: #3498db; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        .stats-cards { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
-        .card { background: white; border-radius: 12px; padding: 15px; flex: 1; min-width: 150px; text-align: center; }
-        .map-container { height: 500px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #ddd; }
-        .teams-table { background: white; border-radius: 12px; overflow-x: auto; padding: 15px; }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #f0f2f5; margin: 0; padding: 20px; }
+        .container { max-width: 1400px; margin: auto; }
+        .card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .flex-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+        button, .btn { background: #3498db; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+        .btn-danger { background: #e74c3c; }
+        .btn-success { background: #27ae60; }
+        .map { height: 500px; border-radius: 12px; border: 1px solid #ccc; }
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px; text-align: center; border-bottom: 1px solid #eee; }
+        th, td { padding: 10px; text-align: center; border-bottom: 1px solid #eee; }
         th { background: #34495e; color: white; }
-        .team-link { direction: ltr; background: #ecf0f1; padding: 4px 8px; border-radius: 20px; display: inline-block; }
-        .completed { background: #2ecc71; color: white; padding: 2px 8px; border-radius: 20px; }
-        .pending { background: #e67e22; color: white; padding: 2px 8px; border-radius: 20px; }
-        .export-btn { background: #27ae60; }
+        .log-box { background: #1e1e1e; color: #0f0; font-family: monospace; padding: 10px; border-radius: 8px; max-height: 200px; overflow-y: auto; font-size: 12px; direction: ltr; }
+        .badge { padding: 2px 8px; border-radius: 20px; font-size: 12px; }
+        .badge-green { background: #2ecc71; color: white; }
+        .badge-orange { background: #e67e22; color: white; }
     </style>
 </head>
 <body>
 <div class="container">
-    <div class="header">
-        <h1>📊 مدير النظام - تكامل Google Sheets</h1>
-        <div>
-            <button onclick="refreshData()">🔄 تحديث</button>
-            <button class="export-btn" onclick="exportToExcel()">📎 Excel</button>
+    <div class="card">
+        <h2>🗺️ مدير التوزيع الجغرافي - تصحيح</h2>
+        <div class="flex-row">
+            <div><label>ملف CSV (عدادات):</label><input type="file" id="csvFile" accept=".csv, .xlsx"></div>
+            <div><label>ملف KML (مضلعات):</label><input type="file" id="kmlFile" accept=".kml"></div>
+            <div><label>🔄 تبديل الإحداثيات؟</label><input type="checkbox" id="swapCoords"></div>
+            <button id="processBtn">🚀 تحميل وتوزيع</button>
         </div>
+        <div id="msgArea" style="margin-top: 10px;"></div>
     </div>
 
-    <div class="upload-area">
-        <h3>📂 رفع ملف CSV (بيانات العدادات) و KML (المناطق)</h3>
-        <div class="upload-form">
-            <div class="form-group">
-                <label>ملف CSV:</label>
-                <input type="file" id="csvFile" accept=".csv">
-            </div>
-            <div class="form-group">
-                <label>ملف KML:</label>
-                <input type="file" id="kmlFile" accept=".kml">
-            </div>
-            <button onclick="uploadAndProcess()">🚀 تحميل وتقسيم وحفظ في Google Sheets</button>
-        </div>
-        <div id="uploadMsg" style="margin-top: 10px;"></div>
+    <div class="card">
+        <h3>📊 إحصائيات التوزيع</h3>
+        <div id="stats" class="flex-row" style="justify-content: space-between;">--</div>
     </div>
 
-    <div class="stats-cards" id="statsCards"></div>
-    <div class="map-container" id="managerMap"></div>
-    <div class="teams-table">
-        <h3>📋 الفرق والروابط (انسخ الرابط لكل فريق)</h3>
-        <table id="teamsTable">
-            <thead><tr><th>اسم الفريق</th><th>العدادات</th><th>تم</th><th>متبقي</th><th>رابط الخريطة</th></tr></thead>
-            <tbody></tbody>
-        </table>
+    <div class="card">
+        <div id="map" class="map"></div>
+    </div>
+
+    <div class="card">
+        <h3>📋 الفرق والروابط</h3>
+        <div id="teamsTable"></div>
+    </div>
+
+    <div class="card">
+        <h3>📝 سجل التصحيح</h3>
+        <div id="log" class="log-box"></div>
+        <button id="exportLogBtn" class="btn-success" style="margin-top: 10px;">📎 تصدير السجل</button>
     </div>
 </div>
 
 <script>
-    // ⚙️ قم بتعيين رابط تطبيق Google Apps Script هنا
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw4E7ZFs81Pz_xHBjRJ5B76b0ADRJBMcif_GV9rOCNzNgXxtpC7_GD_2ggsid2cn45T8A/exec';
-    
-    let map, markersLayer, polygonLayer;
-    
+    // ------------------- المتغيرات العامة -------------------
+    let map;
+    let markersLayer, polygonLayer;
+    let currentTeams = [];
+    let currentMeters = [];
+
+    function log(msg, type = 'info') {
+        const logDiv = document.getElementById('log');
+        const time = new Date().toLocaleTimeString();
+        logDiv.innerHTML += `<div>[${time}] ${msg}</div>`;
+        logDiv.scrollTop = logDiv.scrollHeight;
+        console.log(msg);
+    }
+
     function initMap() {
-        map = L.map('managerMap').setView([27.545, 41.712], 12);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OSM' }).addTo(map);
+        map = L.map('map').setView([27.545, 41.712], 12);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+        }).addTo(map);
         markersLayer = L.layerGroup().addTo(map);
         polygonLayer = L.layerGroup().addTo(map);
     }
-    
-    async function fetchManagerData() {
-        const res = await fetch(`${SCRIPT_URL}?action=getManagerData`);
-        return await res.json();
-    }
-    
-    async function refreshData() {
-        const data = await fetchManagerData();
-        updateStats(data);
-        updateTeamsTable(data);
-        updateMap(data);
-    }
-    
-    function updateStats(data) {
-        const total = data.meters.length;
-        const completed = data.meters.filter(m => m.status === 'completed').length;
-        const pending = total - completed;
-        document.getElementById('statsCards').innerHTML = `
-            <div class="card"><h3>${total}</h3><p>إجمالي العدادات</p></div>
-            <div class="card"><h3 style="color:#2ecc71">${completed}</h3><p>تم الإنجاز</p></div>
-            <div class="card"><h3 style="color:#e67e22">${pending}</h3><p>متبقي</p></div>
-            <div class="card"><h3>${data.teams.length}</h3><p>عدد الفرق</p></div>
-        `;
-    }
-    
-    function updateTeamsTable(data) {
-        const tbody = document.querySelector('#teamsTable tbody');
-        tbody.innerHTML = '';
-        for (let team of data.teams) {
-            const teamMeters = data.meters.filter(m => m.teamId === team.id);
-            const completed = teamMeters.filter(m => m.status === 'completed').length;
-            const pending = teamMeters.length - completed;
-            const link = `${window.location.origin.replace('manager', 'team')}?token=${team.token}`;
-            // إذا كان الملفان في نفس المجلد
-            const fullLink = `${window.location.origin}/team.html?token=${team.token}`;
-            tbody.innerHTML += `
-                <tr>
-                    <td>${team.name}</td>
-                    <td>${teamMeters.length}</td>
-                    <td><span class="completed">${completed}</span></td>
-                    <td><span class="pending">${pending}</span></td>
-                    <td><a href="${fullLink}" target="_blank" class="team-link">🔗 رابط الفريق</a></td>
-                </tr>
-            `;
-        }
-    }
-    
-    function updateMap(data) {
-        markersLayer.clearLayers();
-        polygonLayer.clearLayers();
-        // رسم المضلعات
-        data.teams.forEach(team => {
-            if (team.polygonCoords && team.polygonCoords.length > 2) {
-                const latlngs = team.polygonCoords.map(p => [p.lat, p.lng]);
-                L.polygon(latlngs, { color: '#2c3e50', weight: 2, fillColor: '#3498db', fillOpacity: 0.1 }).addTo(polygonLayer)
-                    .bindPopup(`<b>${team.name}</b>`);
-            }
-        });
-        // رسم العدادات
-        data.meters.forEach(meter => {
-            let color = '#95a5a6';
-            if (meter.action === 'lock') color = '#e74c3c';
-            else if (meter.action === 'unlock') color = '#2ecc71';
-            else if (meter.action === 'sticker') color = '#f39c12';
-            if (meter.status === 'completed') color = '#bdc3c7';
-            const marker = L.circleMarker([meter.lat, meter.lng], {
-                radius: meter.status === 'completed' ? 6 : 10,
-                fillColor: color, color: '#fff', weight: 2, fillOpacity: 0.8
-            }).addTo(markersLayer);
-            let actionAr = { lock:'قفل', unlock:'فتح', sticker:'ملصق' }[meter.action] || '?';
-            marker.bindPopup(`
-                <b>العداد: ${meter.meterId}</b><br>
-                الإجراء: ${actionAr}<br>
-                الحالة: ${meter.status === 'completed' ? '✅ تم' : '⏳ قيد'}<br>
-                <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')">🧭 التنقل</button>
-            `);
-        });
-    }
-    
-    // دوال تحليل CSV و KML (نفس السابق)
-    function parseCSV(csvText) {
-        return new Promise((resolve) => {
-            const lines = csvText.trim().split(/\r?\n/);
-            const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-            const meters = [];
-            for (let i=1; i<lines.length; i++) {
-                const vals = lines[i].split(',');
-                let row = {};
-                headers.forEach((h, idx) => { row[h] = vals[idx]?.trim(); });
-                let meterId = row.meter_id || row['رقم العداد'] || row.id;
-                let lat = parseFloat(row.lat || row.latitude || row['الاحداثيات العرضية']);
-                let lng = parseFloat(row.lng || row.longitude || row['الاحداثيات الطولية']);
-                let actionRaw = row.action || row['الاجراء المطلوب'] || '';
-                let action = 'unknown';
-                if (actionRaw.includes('قفل')) action = 'lock';
-                else if (actionRaw.includes('فتح')) action = 'unlock';
-                else if (actionRaw.includes('ملصق')) action = 'sticker';
-                if (meterId && !isNaN(lat) && !isNaN(lng)) {
-                    meters.push({
-                        id: crypto.randomUUID(), meterId: String(meterId), lat, lng, action,
-                        status: 'pending', completedAt: null, teamId: null
-                    });
-                }
-            }
-            resolve(meters);
-        });
-    }
-    
-    function parseKML(kmlText) {
-        return new Promise((resolve) => {
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(kmlText, "text/xml");
-            const placemarks = xmlDoc.getElementsByTagName("Placemark");
-            let polygons = [];
-            for (let pm of placemarks) {
-                let name = pm.getElementsByTagName("name")[0]?.textContent || "منطقة";
-                let coords = [];
-                const polygonNode = pm.getElementsByTagName("Polygon")[0];
-                if (polygonNode) {
-                    const coordStr = polygonNode.getElementsByTagName("coordinates")[0]?.textContent.trim();
-                    if (coordStr) coords = parseCoordinates(coordStr);
-                } else {
-                    const multiGeom = pm.getElementsByTagName("MultiGeometry")[0];
-                    if (multiGeom) {
-                        const polygonsNode = multiGeom.getElementsByTagName("Polygon");
-                        for (let pg of polygonsNode) {
-                            const coordStr = pg.getElementsByTagName("coordinates")[0]?.textContent.trim();
-                            if (coordStr) coords.push(...parseCoordinates(coordStr));
+
+    // ------------------- دوال التحليل -------------------
+    function parseCSVorXLSX(file) {
+        return new Promise((resolve, reject) => {
+            const ext = file.name.split('.').pop().toLowerCase();
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                let meters = [];
+                if (ext === 'csv') {
+                    const csvText = e.target.result;
+                    const lines = csvText.trim().split(/\r?\n/);
+                    if (lines.length < 2) return reject(new Error('CSV فارغ'));
+                    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                    // البحث عن أعمدة معينة بمرونة
+                    const idxId = headers.findIndex(h => h.match(/(meter_id|meterid|id|رقم العداد)/i));
+                    const idxLat = headers.findIndex(h => h.match(/(lat|latitude|عرض|y)/i));
+                    const idxLng = headers.findIndex(h => h.match(/(lng|lon|longitude|طول|x)/i));
+                    const idxAction = headers.findIndex(h => h.match(/(action|الإجراء|الاجراء)/i));
+                    if (idxId === -1 || idxLat === -1 || idxLng === -1) 
+                        return reject(new Error('تأكد من وجود أعمدة: meter_id, lat, lng'));
+                    for (let i=1; i<lines.length; i++) {
+                        const parts = lines[i].split(',');
+                        if (parts.length < 3) continue;
+                        let meterId = parts[idxId]?.trim();
+                        let lat = parseFloat(parts[idxLat]?.trim());
+                        let lng = parseFloat(parts[idxLng]?.trim());
+                        let actionRaw = idxAction !== -1 ? parts[idxAction]?.trim() : '';
+                        let action = 'unknown';
+                        if (actionRaw.includes('قفل')) action = 'lock';
+                        else if (actionRaw.includes('فتح')) action = 'unlock';
+                        else if (actionRaw.includes('ملصق')) action = 'sticker';
+                        if (meterId && !isNaN(lat) && !isNaN(lng)) {
+                            meters.push({ id: crypto.randomUUID(), meterId, lat, lng, action, status: 'pending', completedAt: null, teamId: null });
+                        }
+                    }
+                } else if (ext === 'xlsx') {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(sheet);
+                    for (let row of rows) {
+                        let meterId = row.meter_id || row.METER_ID || row['رقم العداد'] || row.id;
+                        let lat = parseFloat(row.lat || row.LAT || row['الاحداثيات العرضية'] || row.latitude);
+                        let lng = parseFloat(row.lng || row.LNG || row['الاحداثيات الطولية'] || row.longitude);
+                        let actionRaw = row.action || row.ACTION || row['الاجراء المطلوب'] || '';
+                        let action = 'unknown';
+                        if (actionRaw.includes('قفل')) action = 'lock';
+                        else if (actionRaw.includes('فتح')) action = 'unlock';
+                        else if (actionRaw.includes('ملصق')) action = 'sticker';
+                        if (meterId && !isNaN(lat) && !isNaN(lng)) {
+                            meters.push({ id: crypto.randomUUID(), meterId: String(meterId), lat, lng, action, status: 'pending', completedAt: null, teamId: null });
                         }
                     }
                 }
-                if (coords.length) polygons.push({ name, coords });
-            }
-            resolve(polygons);
+                log(`✅ تم قراءة ${meters.length} عداد من الملف`);
+                resolve(meters);
+            };
+            reader.onerror = () => reject(new Error('خطأ في قراءة الملف'));
+            if (ext === 'csv') reader.readAsText(file);
+            else if (ext === 'xlsx') reader.readAsArrayBuffer(file);
+            else reject(new Error('امتداد غير مدعوم، استخدم CSV أو XLSX'));
         });
     }
-    
-    function parseCoordinates(coordStr) {
-        let points = coordStr.trim().split(/\s+/);
-        return points.map(p => { let [lng, lat] = p.split(',').map(Number); return { lat, lng }; }).filter(p => !isNaN(p.lat) && !isNaN(p.lng));
+
+    function parseKML(file, swapCoords = false) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const kmlText = e.target.result;
+                const parser = new DOMParser();
+                const xml = parser.parseFromString(kmlText, 'text/xml');
+                const placemarks = xml.getElementsByTagName('Placemark');
+                let polygons = [];
+                for (let pm of placemarks) {
+                    let name = pm.getElementsByTagName('name')[0]?.textContent || 'منطقة بدون اسم';
+                    let coords = [];
+                    const polygonNode = pm.getElementsByTagName('Polygon')[0];
+                    if (polygonNode) {
+                        const coordStr = polygonNode.getElementsByTagName('coordinates')[0]?.textContent.trim();
+                        if (coordStr) coords = parseKMLCoords(coordStr, swapCoords);
+                    } else {
+                        const multiGeom = pm.getElementsByTagName('MultiGeometry')[0];
+                        if (multiGeom) {
+                            const polys = multiGeom.getElementsByTagName('Polygon');
+                            for (let p of polys) {
+                                const coordStr = p.getElementsByTagName('coordinates')[0]?.textContent.trim();
+                                if (coordStr) coords.push(...parseKMLCoords(coordStr, swapCoords));
+                            }
+                        }
+                    }
+                    if (coords.length > 0) {
+                        polygons.push({ name, coords });
+                        log(`📍 مضلع: ${name} - عدد النقاط: ${coords.length}`);
+                    } else {
+                        log(`⚠️ لم يتم العثور على إحداثيات في Placemark: ${name}`);
+                    }
+                }
+                if (polygons.length === 0) reject(new Error('لم يتم العثور على أي مضلعات صالحة في KML'));
+                resolve(polygons);
+            };
+            reader.onerror = () => reject(new Error('فشل قراءة KML'));
+            reader.readAsText(file);
+        });
     }
-    
-    function pointInPolygon(point, polygon) {
-        let x = point.lng, y = point.lat, inside = false;
+
+    function parseKMLCoords(coordStr, swap) {
+        const points = coordStr.trim().split(/\s+/);
+        return points.map(p => {
+            let parts = p.split(',').map(Number);
+            if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                let lng = parts[0];
+                let lat = parts[1];
+                if (swap) { let t = lat; lat = lng; lng = t; }
+                return { lat, lng };
+            }
+            return null;
+        }).filter(p => p !== null);
+    }
+
+    // اختبار النقطة داخل مضلع (Ray casting)
+    function isPointInPolygon(point, polygon) {
+        let x = point.lng, y = point.lat;
+        let inside = false;
         for (let i = 0, j = polygon.length-1; i < polygon.length; j = i++) {
             let xi = polygon[i].lng, yi = polygon[i].lat;
             let xj = polygon[j].lng, yj = polygon[j].lat;
@@ -230,82 +214,166 @@
         }
         return inside;
     }
-    
-    async function uploadAndProcess() {
-        const csvFile = document.getElementById('csvFile').files[0];
-        const kmlFile = document.getElementById('kmlFile').files[0];
-        if (!csvFile || !kmlFile) { alert('اختر الملفين'); return; }
-        const msg = document.getElementById('uploadMsg');
-        msg.innerText = 'جاري المعالجة...';
-        try {
-            const csvText = await csvFile.text();
-            const kmlText = await kmlFile.text();
-            const meters = await parseCSV(csvText);
-            const polygons = await parseKML(kmlText);
-            if (polygons.length === 0) throw new Error('لا توجد مضلعات في KML');
-            // تقسيم العدادات على الفرق
-            let teams = polygons.map((poly, idx) => ({
-                id: crypto.randomUUID(), token: Math.random().toString(36).substring(2,10),
-                name: poly.name || `الفرقة ${idx+1}`, polygonCoords: poly.coords, meterIds: []
-            }));
-            for (let meter of meters) {
-                let assigned = false;
-                for (let team of teams) {
-                    if (pointInPolygon({ lat: meter.lat, lng: meter.lng }, team.polygonCoords)) {
-                        team.meterIds.push(meter.id);
-                        meter.teamId = team.id;
-                        assigned = true;
-                        break;
-                    }
-                }
-                if (!assigned) {
-                    let defaultTeam = teams.find(t => t.name === 'منطقة غير محددة');
-                    if (!defaultTeam) {
-                        defaultTeam = { id: crypto.randomUUID(), token: Math.random().toString(36).substring(2,10), name: 'منطقة غير محددة', polygonCoords: [], meterIds: [] };
-                        teams.push(defaultTeam);
-                    }
-                    defaultTeam.meterIds.push(meter.id);
-                    meter.teamId = defaultTeam.id;
+
+    // التوزيع الأساسي
+    function assignMetersToTeams(meters, polygons) {
+        let teams = polygons.map((poly, idx) => ({
+            id: crypto.randomUUID(),
+            token: Math.random().toString(36).substring(2, 12),
+            name: poly.name || `الفرقة ${idx+1}`,
+            polygonCoords: poly.coords,
+            meterIds: []
+        }));
+        let statsPerTeam = new Array(teams.length).fill(0);
+        let unassigned = 0;
+        for (let meter of meters) {
+            let assigned = false;
+            for (let i=0; i<teams.length; i++) {
+                if (isPointInPolygon({ lat: meter.lat, lng: meter.lng }, teams[i].polygonCoords)) {
+                    teams[i].meterIds.push(meter.id);
+                    meter.teamId = teams[i].id;
+                    statsPerTeam[i]++;
+                    assigned = true;
+                    break;
                 }
             }
-            // إرسال البيانات إلى Google Sheets
-            const response = await fetch(`${SCRIPT_URL}?action=uploadData`, {
-                method: 'POST',
-                body: new URLSearchParams({
-                    metersJson: JSON.stringify(meters),
-                    teamsJson: JSON.stringify(teams)
-                }),
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-            });
-            const result = await response.json();
-            if (result.success) {
-                msg.innerText = `✅ تم التقسيم وحفظ البيانات بنجاح - ${teams.length} فرقة`;
-                refreshData();
-            } else {
-                msg.innerText = '❌ فشل الحفظ في Google Sheets';
+            if (!assigned) {
+                unassigned++;
+                // إنشاء فريق افتراضي "خارج المناطق" إن لم يوجد
+                let defaultTeam = teams.find(t => t.name === 'خارج المناطق');
+                if (!defaultTeam) {
+                    defaultTeam = {
+                        id: crypto.randomUUID(),
+                        token: Math.random().toString(36).substring(2, 12),
+                        name: 'خارج المناطق',
+                        polygonCoords: [],
+                        meterIds: []
+                    };
+                    teams.push(defaultTeam);
+                    statsPerTeam.push(0);
+                }
+                defaultTeam.meterIds.push(meter.id);
+                meter.teamId = defaultTeam.id;
+                statsPerTeam[teams.length-1]++;
             }
-        } catch(err) {
-            msg.innerText = '❌ خطأ: ' + err.message;
+        }
+        // إزالة الفرق التي ليس لديها أي عداد (اختياري)
+        teams = teams.filter(team => team.meterIds.length > 0);
+        log(`📌 التوزيع: ${meters.length - unassigned} عداد داخل مضلعات، ${unassigned} خارج المناطق.`);
+        for (let i=0; i<teams.length; i++) {
+            log(`   - ${teams[i].name}: ${teams[i].meterIds.length} عداد`);
+        }
+        return { teams, meters };
+    }
+
+    // تحديث الخريطة
+    function updateMap(teams, meters) {
+        markersLayer.clearLayers();
+        polygonLayer.clearLayers();
+        for (let team of teams) {
+            if (team.polygonCoords && team.polygonCoords.length > 2) {
+                const latlngs = team.polygonCoords.map(p => [p.lat, p.lng]);
+                L.polygon(latlngs, { color: '#2c3e50', weight: 2, fillColor: '#3498db', fillOpacity: 0.1 }).addTo(polygonLayer)
+                    .bindPopup(`<b>${team.name}</b><br>العدادات: ${team.meterIds.length}`);
+            }
+        }
+        for (let meter of meters) {
+            let color = '#95a5a6';
+            if (meter.action === 'lock') color = '#e74c3c';
+            else if (meter.action === 'unlock') color = '#2ecc71';
+            else if (meter.action === 'sticker') color = '#f39c12';
+            if (meter.status === 'completed') color = '#bdc3c7';
+            const marker = L.circleMarker([meter.lat, meter.lng], {
+                radius: 8, fillColor: color, color: '#fff', weight: 1.5, fillOpacity: 0.8
+            }).addTo(markersLayer);
+            let actionAr = { lock:'قفل', unlock:'فتح', sticker:'ملصق' }[meter.action] || '?';
+            marker.bindPopup(`
+                <b>العداد: ${meter.meterId}</b><br>
+                الإجراء: ${actionAr}<br>
+                الحالة: ${meter.status === 'completed' ? 'تم' : 'قيد'}<br>
+                <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')">🧭 التنقل</button>
+            `);
         }
     }
-    
-    async function exportToExcel() {
-        const data = await fetchManagerData();
-        const rows = data.meters.map(m => ({
-            'رقم العداد': m.meterId, 'خط الطول': m.lng, 'خط العرض': m.lat,
-            'الإجراء': { lock:'قفل', unlock:'فتح', sticker:'ملصق' }[m.action] || m.action,
-            'الحالة': m.status === 'completed' ? 'تم' : 'قيد الانتظار',
-            'وقت الإنجاز': m.completedAt || '', 'الفرقة': data.teams.find(t=>t.id===m.teamId)?.name || ''
-        }));
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'تقرير');
-        XLSX.writeFile(wb, `report_${new Date().toISOString().slice(0,19)}.xlsx`);
+
+    // عرض جدول الفرق مع الروابط
+    function renderTeamsTable(teams) {
+        let html = `<table><thead><tr><th>اسم الفريق</th><th>عدد العدادات</th><th>رابط الخريطة</th></tr></thead><tbody>`;
+        for (let team of teams) {
+            const link = `${window.location.origin}${window.location.pathname.replace('manager.html', 'team.html')}?token=${team.token}`;
+            html += `<tr><td>${team.name}</td><td>${team.meterIds.length}</td><td><a href="${link}" target="_blank" class="btn" style="background:#3498db; padding:4px 8px;">🔗 رابط الفريق</a></td></tr>`;
+        }
+        html += `</tbody></table>`;
+        document.getElementById('teamsTable').innerHTML = html;
     }
-    
+
+    // العملية الرئيسية
+    async function processFiles() {
+        const csvFile = document.getElementById('csvFile').files[0];
+        const kmlFile = document.getElementById('kmlFile').files[0];
+        const swap = document.getElementById('swapCoords').checked;
+        const msgDiv = document.getElementById('msgArea');
+        if (!csvFile || !kmlFile) {
+            msgDiv.innerHTML = '<span style="color:red;">❌ الرجاء اختيار ملف CSV/Excel وملف KML</span>';
+            return;
+        }
+        msgDiv.innerHTML = '⏳ جاري المعالجة...';
+        log('⚙️ بدء المعالجة مع تبديل الإحداثيات: ' + (swap ? 'نعم' : 'لا'));
+        try {
+            const meters = await parseCSVorXLSX(csvFile);
+            const polygons = await parseKML(kmlFile, swap);
+            if (meters.length === 0) throw new Error('لا توجد عدادات صالحة في الملف');
+            if (polygons.length === 0) throw new Error('لا توجد مضلعات صالحة في KML');
+            const { teams, meters: updatedMeters } = assignMetersToTeams(meters, polygons);
+            currentTeams = teams;
+            currentMeters = updatedMeters;
+            // تخزين محلي للتجربة
+            localStorage.setItem('zone_task_manager_data', JSON.stringify({ teams, meters: updatedMeters }));
+            updateMap(teams, updatedMeters);
+            renderTeamsTable(teams);
+            const totalInside = updatedMeters.filter(m => m.teamId && teams.find(t => t.id === m.teamId && t.name !== 'خارج المناطق')).length;
+            const totalOutside = updatedMeters.length - totalInside;
+            document.getElementById('stats').innerHTML = `
+                <div><span class="badge badge-green">✅ داخل المناطق: ${totalInside}</span></div>
+                <div><span class="badge badge-orange">⚠️ خارج المناطق: ${totalOutside}</span></div>
+                <div>📊 إجمالي الفرق: ${teams.length}</div>
+            `;
+            msgDiv.innerHTML = `<span style="color:green;">✅ تم التوزيع بنجاح! ${totalInside} عداد داخل مضلعات، ${totalOutside} خارجها.</span>`;
+            log('🎉 انتهى التوزيع بنجاح');
+        } catch (err) {
+            msgDiv.innerHTML = `<span style="color:red;">❌ خطأ: ${err.message}</span>`;
+            log(`❌ خطأ: ${err.message}`, 'error');
+            console.error(err);
+        }
+    }
+
+    function exportLog() {
+        const logText = document.getElementById('log').innerText;
+        const blob = new Blob([logText], {type: 'text/plain'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `log_${new Date().toISOString()}.txt`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+
+    document.getElementById('processBtn').addEventListener('click', processFiles);
+    document.getElementById('exportLogBtn').addEventListener('click', exportLog);
     initMap();
-    refreshData();
-    setInterval(refreshData, 10000);
+    // تحميل بيانات سابقة إن وجدت
+    const saved = localStorage.getItem('zone_task_manager_data');
+    if (saved) {
+        try {
+            const { teams, meters } = JSON.parse(saved);
+            if (teams && meters) {
+                currentTeams = teams;
+                currentMeters = meters;
+                updateMap(teams, meters);
+                renderTeamsTable(teams);
+                log('🔄 تم تحميل بيانات سابقة من localStorage');
+            }
+        } catch(e) {}
+    }
 </script>
 </body>
 </html>
