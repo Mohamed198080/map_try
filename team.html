@@ -23,10 +23,10 @@
     <div class="stats" id="statsRemaining">المهام المتبقية: --</div>
 </div>
 <div id="teamMap" class="map-container"></div>
-<div class="info-panel">🧭 أرقام العدادات ظاهرة على الخريطة | اضغط على عداد ثم "تم الإنجاز"</div>
+<div class="info-panel">🧭 تظهر أرقام العدادات والبيانات الإضافية | اضغط على عداد ثم "تم الإنجاز"</div>
 
 <script>
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwijQmkG1sfBR48yhYn2wdIjmb4aCRaUMu31WSHn5UDIlHLvS9ASYj7nL06qGODBIeBUA/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzcJPCEUB7y8xCn6IOmCKwuaIvbVUKQP3M_6dzf3jdbgcalQA-55ZuoJ9V_L9Br_VCnYQ/exec';
     let map, markersLayer, currentTeamToken = null;
 
     function getMeterIcon(meter) {
@@ -39,6 +39,29 @@
             html: `<div style="background-color: ${bgColor}; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5); font-weight: bold; font-size: 12px; color: white;">${meter.meterId.length > 6 ? meter.meterId.slice(0,6) : meter.meterId}</div>`,
             iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -18]
         });
+    }
+
+    function buildPopupContent(meter) {
+        let actionText = { lock:'قفل', unlock:'فتح', sticker:'وضع ملصق' }[meter.action] || 'غير معروف';
+        let extraHtml = '';
+        if (meter.extra && Object.keys(meter.extra).length > 0) {
+            extraHtml = '<hr><div style="text-align:right; font-size:11px;">📌 بيانات إضافية:<br>';
+            for (let [key, val] of Object.entries(meter.extra)) {
+                if (val && val.toString().trim() !== '') {
+                    extraHtml += `<span style="font-weight:bold;">${key}:</span> ${val}<br>`;
+                }
+            }
+            extraHtml += '</div>';
+        }
+        return `
+            <div style="text-align:center; min-width:180px;">
+                <strong>🚦 العداد: ${meter.meterId}</strong><br>
+                🛠️ الإجراء: ${actionText}<br>
+                ${extraHtml}
+                <button id="complete_${meter.id}" style="background:#27ae60;">✅ تم الإنجاز</button>
+                <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')" style="background:#2980b9;">🧭 التنقل</button>
+            </div>
+        `;
     }
 
     function initMap() {
@@ -64,7 +87,6 @@
                 document.getElementById('teamName').innerText = 'فريق غير موجود';
                 return null;
             }
-            // التحقق من صلاحية الرابط
             if (team.tokenExpiry) {
                 const expiryDate = new Date(team.tokenExpiry);
                 const now = new Date();
@@ -90,25 +112,16 @@
         if (!result) return;
         const { team, pendingMeters } = result;
         markersLayer.clearLayers();
-        // رسم حدود الفريق
         if (team.polygonCoords && team.polygonCoords.length > 2) {
             const latlngs = team.polygonCoords.map(p => [p.lat, p.lng]);
             L.polygon(latlngs, { color: '#f1c40f', weight: 3, fillColor: '#f39c12', fillOpacity: 0.2 }).addTo(markersLayer)
                 .bindPopup(`<b>${team.name}</b><br>نطاقك`);
         }
-        // رسم العدادات
         for (let meter of pendingMeters) {
             const icon = getMeterIcon(meter);
             const marker = L.marker([meter.lat, meter.lng], { icon: icon }).addTo(markersLayer);
-            let actionAr = { lock:'🔒 قفل', unlock:'🔓 فتح', sticker:'🏷️ ملصق' }[meter.action] || '⚙️ إجراء';
-            marker.bindPopup(`
-                <div style="text-align:center; min-width:180px;">
-                    <strong>🚦 العداد: ${meter.meterId}</strong><br>
-                    🛠️ ${actionAr}<br>
-                    <button id="complete_${meter.id}" style="background:#27ae60;">✅ تم الإنجاز</button>
-                    <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')" style="background:#2980b9;">🧭 التنقل</button>
-                </div>
-            `);
+            const popupContent = buildPopupContent(meter);
+            marker.bindPopup(popupContent);
             marker.on('popupopen', () => {
                 const btn = document.getElementById(`complete_${meter.id}`);
                 if (btn) btn.onclick = () => completeMeter(meter.id);
