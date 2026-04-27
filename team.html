@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>خريطة الفريق - أيقونات البالونة</title>
+    <title>خريطة الفريق - طبقات متعددة</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         body { margin:0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#1e272e; }
         .header { background:#006266; color:white; padding:15px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; }
         .stats { background:#3c6382; padding:8px 15px; border-radius:30px; font-size:0.9rem; }
-        .map-container { height: calc(100vh - 80px); width:100%; }
+        .map-container { height: calc(100vh - 80px); width:100%; position: relative; }
         .info-panel { position:fixed; bottom:20px; left:20px; background:rgba(0,0,0,0.7); color:white; padding:8px 15px; border-radius:8px; z-index:1000; font-size:12px; pointer-events:none; }
         button { background:#0984e3; border:none; color:white; padding:5px 12px; border-radius:20px; cursor:pointer; margin-top:5px; }
         
@@ -55,6 +55,31 @@
             background: rgba(255,255,255,0.8);
             border-radius: 50%;
         }
+        
+        .layer-control {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255,255,255,0.95);
+            padding: 8px 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 1000;
+            display: flex;
+            gap: 8px;
+            direction: ltr;
+            border: 1px solid #ddd;
+        }
+        .layer-control button {
+            background: #2c3e50;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .layer-control button.active { background: #3498db; }
     </style>
 </head>
 <body>
@@ -62,34 +87,55 @@
     <h2>📍 فريق: <span id="teamName">...</span></h2>
     <div class="stats" id="statsRemaining">المهام المتبقية: --</div>
 </div>
-<div id="teamMap" class="map-container"></div>
-<div class="info-panel">🧭 تظهر العدادات بشكل بالونة مع رقم العداد | اضغط على عداد ثم "تم الإنجاز"</div>
+<div class="map-container" id="teamMap">
+    <div class="layer-control" id="layerControl">
+        <button data-layer="street" class="active">🗺️ عادي</button>
+        <button data-layer="satellite">🛰️ قمر صناعي</button>
+        <button data-layer="terrain">⛰️ تضاريس</button>
+    </div>
+</div>
+<div class="info-panel">🧭 يمكنك تبديل خلفية الخريطة | اضغط على عداد ثم "تم الإنجاز"</div>
 
 <script>
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyxCI2RK1mlSpTmdy2DKqExAED3yDYaU1phYy6KUjxzreGCLw1_hSkZVLdEUg7_s6SqSg/exec';
-    let map, markersLayer, currentTeamToken = null;
-
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzH03lCR9eNuGFqSp4dGhk1hrN6iLSRb-pRtdqrsy9BTuWVhy_wiKNn1jpB1WAfByF8AA/exec';
+    let map, markersLayer, currentTileLayer = null;
+    let currentTeamToken = null;
+    
+    const tileLayers = {
+        street: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OSM & CartoDB' }),
+        satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri' }),
+        terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenTopoMap' })
+    };
+    
+    function switchLayer(layerName) {
+        if (currentTileLayer) map.removeLayer(currentTileLayer);
+        currentTileLayer = tileLayers[layerName];
+        currentTileLayer.addTo(map);
+        document.querySelectorAll('.layer-control button').forEach(btn => {
+            if (btn.dataset.layer === layerName) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+    }
+    
+    function initMap() {
+        map = L.map('teamMap').setView([27.545, 41.712], 12);
+        currentTileLayer = tileLayers.street;
+        currentTileLayer.addTo(map);
+        markersLayer = L.layerGroup().addTo(map);
+        document.querySelectorAll('.layer-control button').forEach(btn => {
+            btn.addEventListener('click', () => switchLayer(btn.dataset.layer));
+        });
+    }
+    
     function createBalloonIcon(meter) {
         let bgColor = '#95a5a6';
         if (meter.action === 'lock') bgColor = '#e74c3c';
         else if (meter.action === 'unlock') bgColor = '#2ecc71';
         else if (meter.action === 'sticker') bgColor = '#f39c12';
-        const html = `
-            <div class="balloon-marker">
-                <div class="pin" style="background-color: ${bgColor};">
-                    <div class="number">${meter.meterId.length > 4 ? meter.meterId.slice(0,4) : meter.meterId}</div>
-                </div>
-            </div>
-        `;
-        return L.divIcon({
-            className: 'balloon-marker-container',
-            html: html,
-            iconSize: [36, 36],
-            iconAnchor: [18, 32],
-            popupAnchor: [0, -32]
-        });
+        const html = `<div class="balloon-marker"><div class="pin" style="background-color: ${bgColor};"><div class="number">${meter.meterId.length > 4 ? meter.meterId.slice(0,4) : meter.meterId}</div></div></div>`;
+        return L.divIcon({ className: 'balloon-marker-container', html: html, iconSize: [36,36], iconAnchor: [18,32], popupAnchor: [0,-32] });
     }
-
+    
     function buildPopupContent(meter) {
         let actionText = { lock:'قفل', unlock:'فتح', sticker:'وضع ملصق' }[meter.action] || 'غير معروف';
         let extraHtml = '';
@@ -102,13 +148,7 @@
         }
         return `<div style="text-align:center; min-width:180px;"><strong>🚦 العداد: ${meter.meterId}</strong><br>🛠️ الإجراء: ${actionText}<br>${extraHtml}<button id="complete_${meter.id}" style="background:#27ae60;">✅ تم الإنجاز</button><br><button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')" style="background:#2980b9; margin-top:5px;">🧭 التنقل</button></div>`;
     }
-
-    function initMap() {
-        map = L.map('teamMap').setView([27.545,41.712],12);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© OSM'}).addTo(map);
-        markersLayer = L.layerGroup().addTo(map);
-    }
-
+    
     async function loadTeamData() {
         const token = new URLSearchParams(location.search).get('token');
         if (!token) { document.getElementById('teamName').innerText='رابط غير صالح'; return null; }
@@ -130,7 +170,7 @@
             return { team, pendingMeters: pending };
         } catch(e) { document.getElementById('teamName').innerText='خطأ في الاتصال'; return null; }
     }
-
+    
     async function refreshMap() {
         const result = await loadTeamData();
         if (!result) return;
@@ -144,15 +184,14 @@
         for (let m of pendingMeters) {
             const icon = createBalloonIcon(m);
             const marker = L.marker([m.lat,m.lng], { icon:icon }).addTo(markersLayer);
-            const popupContent = buildPopupContent(m);
-            marker.bindPopup(popupContent);
+            marker.bindPopup(buildPopupContent(m));
             marker.on('popupopen', () => {
                 const btn = document.getElementById(`complete_${m.id}`);
                 if (btn) btn.onclick = () => completeMeter(m.id);
             });
         }
     }
-
+    
     async function completeMeter(meterId) {
         if (!confirm('إتمام المهمة؟')) return;
         try {
@@ -162,7 +201,7 @@
             else alert('❌ فشل: '+ (result.error||''));
         } catch(e) { alert('خطأ في الاتصال'); }
     }
-
+    
     initMap();
     refreshMap();
     setInterval(refreshMap, 8000);
