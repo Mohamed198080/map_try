@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>مدير النظام-حائل</title>
+    <title>مدير النظام - أيقونات البالونة</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -30,13 +30,54 @@
         .log-area { background: #f8f9fa; border: 1px solid #ddd; border-radius: 8px; padding: 10px; margin-top: 20px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; }
         .swap-check { display: flex; align-items: center; gap: 8px; }
         .footer { text-align: center; margin-top: 30px; color: #7f8c8d; }
-        .meter-icon { background: transparent; border: none; text-align: center; font-weight: bold; font-size: 12px; width: 40px !important; height: 40px !important; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: white; text-shadow: 0 0 2px black; box-shadow: 0 0 4px rgba(0,0,0,0.5); }
+        
+        /* أيقونة البالونة */
+        .balloon-marker {
+            background: transparent;
+            width: 36px;
+            height: 36px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 12px;
+            color: white;
+            position: relative;
+        }
+        .balloon-marker .pin {
+            width: 32px;
+            height: 32px;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            position: absolute;
+            top: 0;
+            left: 2px;
+        }
+        .balloon-marker .pin .number {
+            transform: rotate(45deg);
+            font-weight: bold;
+            font-size: 11px;
+            color: white;
+            text-shadow: 0 0 1px black;
+        }
+        .balloon-marker .pin::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 12px;
+            width: 6px;
+            height: 6px;
+            background: rgba(255,255,255,0.8);
+            border-radius: 50%;
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <h1>📊 مدير التوزيع الجغرافي (مرن للأعمدة الإضافية)</h1>
+        <h1>📊 مدير التوزيع الجغرافي (بالونات)</h1>
         <div>
             <button onclick="refreshData()">🔄 تحديث</button>
             <button onclick="exportToExcel()" style="background:#27ae60;">📎 Excel</button>
@@ -44,7 +85,7 @@
         </div>
     </div>
     <div class="upload-area">
-        <h3>📂 رفع الملفات </h3>
+        <h3>📂 رفع الملفات (يدعم أي أعمدة إضافية)</h3>
         <div class="upload-form">
             <div class="form-group"><label>ملف البيانات (عدادات):</label><input type="file" id="dataFile" accept=".csv,.xlsx"></div>
             <div class="form-group"><label>ملف KML:</label><input type="file" id="kmlFile" accept=".kml"></div>
@@ -64,12 +105,12 @@
     <div class="teams-table">
         <h3>📋 الفرق والروابط (تنتهي صلاحيتها بعد 24 ساعة)</h3>
         <table id="teamsTable">
-            <thead><tr><th>الفرقة</th><th>العدادات</th><th>تم</th><th>متبقي</th><th>الرابط</th><th>الصلاحية</th></tr></thead>
+            <thead>汽<th>الفرقة</th><th>العدادات</th><th>تم</th><th>متبقي</th><th>الرابط</th><th>الصلاحية</th> </thead>
             <tbody></tbody>
         </table>
     </div>
     <div class="log-area" id="logArea">📋 سجل العمليات...</div>
-    <div class="footer">✅ يمكنك إضافة عدادات جديدة دون فقدان البيانات القديمة</div>
+    <div class="footer">✅ تظهر العدادات بشكل بالونة مع رقم العداد ولون حسب الإجراء</div>
 </div>
 
 <script>
@@ -92,16 +133,27 @@
         return 'unknown';
     }
 
-    function getMeterIcon(meter) {
+    // إنشاء أيقونة بالونة
+    function createBalloonIcon(meter) {
         let bgColor = '#95a5a6';
-        if (meter.status === 'completed') bgColor = '#bdc3c7';
+        if (meter.status === 'completed') bgColor = '#7f8c8d';
         else if (meter.action === 'lock') bgColor = '#e74c3c';
         else if (meter.action === 'unlock') bgColor = '#2ecc71';
         else if (meter.action === 'sticker') bgColor = '#f39c12';
+        
+        const html = `
+            <div class="balloon-marker">
+                <div class="pin" style="background-color: ${bgColor};">
+                    <div class="number">${meter.meterId.length > 4 ? meter.meterId.slice(0,4) : meter.meterId}</div>
+                </div>
+            </div>
+        `;
         return L.divIcon({
-            className: 'meter-icon',
-            html: `<div style="background-color:${bgColor}; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white; box-shadow:0 0 4px rgba(0,0,0,0.5); font-weight:bold; font-size:12px; color:white;">${meter.meterId.length > 6 ? meter.meterId.slice(0,6) : meter.meterId}</div>`,
-            iconSize: [36,36], iconAnchor: [18,18], popupAnchor: [0,-18]
+            className: 'balloon-marker-container',
+            html: html,
+            iconSize: [36, 36],
+            iconAnchor: [18, 32],
+            popupAnchor: [0, -32]
         });
     }
 
@@ -119,8 +171,8 @@
         return `<div style="text-align:center; min-width:200px;"><b>🚦 العداد: ${meter.meterId}</b><br>📋 الإجراء: ${actionText}<br>📍 الحالة: ${statusText}<br>${extraHtml}${meter.completedAt ? '🕒 وقت الإنجاز: ' + new Date(meter.completedAt).toLocaleString() + '<br>' : ''}<button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')" style="margin-top:5px;">🧭 التنقل</button></div>`;
     }
 
-    // قراءة ملف البيانات (مع كافة الأعمدة)
-    async function parseDataFile(file, isAppend = false) {
+    // قراءة ملف البيانات (CSV/Excel) مع كل الأعمدة
+    async function parseDataFile(file) {
         return new Promise((resolve, reject) => {
             const ext = file.name.split('.').pop().toLowerCase();
             const reader = new FileReader();
@@ -229,6 +281,7 @@
                         }
                     }
                 } else reject(new Error('نوع ملف غير مدعوم'));
+                log(`✅ تم قراءة ${meters.length} عداد`);
                 resolve(meters);
             };
             reader.onerror = () => reject(new Error('فشل قراءة الملف'));
@@ -238,7 +291,7 @@
         });
     }
 
-    // دالة تحليل KML (كما هي)
+    // تحليل KML
     async function parseKMLFile(file, swapCoords) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -330,28 +383,21 @@
         } catch(e) { log('⚠️ فشل التحميل: '+e.message); return null; }
     }
 
-    // دالة لإضافة عدادات جديدة (دمج مع القديم)
     async function appendMeters() {
         const appendFile = document.getElementById('appendFile').files[0];
         if (!appendFile) { alert('اختر ملف البيانات الجديد'); return; }
-        const swap = document.getElementById('swapCoords').checked; // ليس ضرورياً للإضافة لكن نستخدمه
         try {
             const newMeters = await parseDataFile(appendFile);
-            if (newMeters.length === 0) throw new Error('لا توجد عدادات صالحة في الملف');
-            // تحميل البيانات الحالية من Google Sheets
+            if (newMeters.length === 0) throw new Error('لا توجد عدادات صالحة');
             const currentData = await loadFromGoogleSheets();
-            if (!currentData || !currentData.meters) throw new Error('لا توجد بيانات حالية لعمل إضافة، قم برفع الملف الأساسي أولاً');
-            // دمج العدادات الجديدة مع القديمة (تجنب المكرر حسب meterId)
+            if (!currentData || !currentData.meters) throw new Error('لا توجد بيانات حالية، قم برفع الملف الأساسي أولاً');
             const existingIds = new Set(currentData.meters.map(m => m.meterId));
             const metersToAdd = newMeters.filter(m => !existingIds.has(m.meterId));
             if (metersToAdd.length === 0) { alert('جميع العدادات الجديدة موجودة بالفعل'); return; }
             const allMeters = [...currentData.meters, ...metersToAdd];
-            // إعادة تعيين teamId للعدادات الجديدة (لأن الفرق قد تتغير؟ يجب إعادة توزيع كل العدادات مع المضلعات الحالية)
-            // نحتاج إلى إعادة التوزيع الكامل باستخدام المضلعات الحالية
             const polygons = currentData.teams.map(t => ({ name: t.name, coords: t.polygonCoords }));
             if (polygons.length === 0) throw new Error('لا توجد مناطق محددة مسبقاً');
             const { teams, meters: reassignedMeters } = assignMetersToTeams(allMeters, polygons);
-            // حفظ البيانات المدمجة والمعاد توزيعها
             const saved = await saveToGoogleSheets(teams, reassignedMeters);
             if (saved) {
                 alert(`تمت إضافة ${metersToAdd.length} عداد جديد وإعادة توزيع جميع العدادات`);
@@ -376,7 +422,7 @@
             }
         }
         for (let m of meters) {
-            const icon = getMeterIcon(m);
+            const icon = createBalloonIcon(m);
             const marker = L.marker([m.lat,m.lng], { icon:icon }).addTo(markersLayer);
             marker.bindPopup(buildPopupContent(m));
         }
