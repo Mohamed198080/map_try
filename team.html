@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>خريطة الفريق - نظام العدادات</title>
+    <title>خريطة الفريق - أيقونات البالونة</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
@@ -13,7 +13,48 @@
         .map-container { height: calc(100vh - 80px); width:100%; }
         .info-panel { position:fixed; bottom:20px; left:20px; background:rgba(0,0,0,0.7); color:white; padding:8px 15px; border-radius:8px; z-index:1000; font-size:12px; pointer-events:none; }
         button { background:#0984e3; border:none; color:white; padding:5px 12px; border-radius:20px; cursor:pointer; margin-top:5px; }
-        .meter-icon { background:transparent; border:none; text-align:center; font-weight:bold; font-size:12px; width:40px !important; height:40px !important; display:flex; align-items:center; justify-content:center; border-radius:50%; color:white; text-shadow:0 0 2px black; box-shadow:0 0 4px rgba(0,0,0,0.5); }
+        
+        /* أيقونة البالونة */
+        .balloon-marker {
+            background: transparent;
+            width: 36px;
+            height: 36px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 12px;
+            color: white;
+            position: relative;
+        }
+        .balloon-marker .pin {
+            width: 32px;
+            height: 32px;
+            border-radius: 50% 50% 50% 0;
+            transform: rotate(-45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            position: absolute;
+            top: 0;
+            left: 2px;
+        }
+        .balloon-marker .pin .number {
+            transform: rotate(45deg);
+            font-weight: bold;
+            font-size: 11px;
+            color: white;
+            text-shadow: 0 0 1px black;
+        }
+        .balloon-marker .pin::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 12px;
+            width: 6px;
+            height: 6px;
+            background: rgba(255,255,255,0.8);
+            border-radius: 50%;
+        }
     </style>
 </head>
 <body>
@@ -22,20 +63,30 @@
     <div class="stats" id="statsRemaining">المهام المتبقية: --</div>
 </div>
 <div id="teamMap" class="map-container"></div>
-<div class="info-panel">🧭 تظهر أرقام العدادات والبيانات الإضافية | اضغط على عداد ثم "تم الإنجاز"</div>
+<div class="info-panel">🧭 تظهر العدادات بشكل بالونة مع رقم العداد | اضغط على عداد ثم "تم الإنجاز"</div>
+
 <script>
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyxCI2RK1mlSpTmdy2DKqExAED3yDYaU1phYy6KUjxzreGCLw1_hSkZVLdEUg7_s6SqSg/exec';
     let map, markersLayer, currentTeamToken = null;
 
-    function getMeterIcon(meter) {
+    function createBalloonIcon(meter) {
         let bgColor = '#95a5a6';
         if (meter.action === 'lock') bgColor = '#e74c3c';
         else if (meter.action === 'unlock') bgColor = '#2ecc71';
         else if (meter.action === 'sticker') bgColor = '#f39c12';
+        const html = `
+            <div class="balloon-marker">
+                <div class="pin" style="background-color: ${bgColor};">
+                    <div class="number">${meter.meterId.length > 4 ? meter.meterId.slice(0,4) : meter.meterId}</div>
+                </div>
+            </div>
+        `;
         return L.divIcon({
-            className: 'meter-icon',
-            html: `<div style="background-color:${bgColor}; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white; box-shadow:0 0 4px rgba(0,0,0,0.5); font-weight:bold; font-size:12px; color:white;">${meter.meterId.length > 6 ? meter.meterId.slice(0,6) : meter.meterId}</div>`,
-            iconSize: [36,36], iconAnchor: [18,18], popupAnchor: [0,-18]
+            className: 'balloon-marker-container',
+            html: html,
+            iconSize: [36, 36],
+            iconAnchor: [18, 32],
+            popupAnchor: [0, -32]
         });
     }
 
@@ -91,7 +142,7 @@
                 .bindPopup(`<b>${team.name}</b><br>نطاقك`);
         }
         for (let m of pendingMeters) {
-            const icon = getMeterIcon(m);
+            const icon = createBalloonIcon(m);
             const marker = L.marker([m.lat,m.lng], { icon:icon }).addTo(markersLayer);
             const popupContent = buildPopupContent(m);
             marker.bindPopup(popupContent);
