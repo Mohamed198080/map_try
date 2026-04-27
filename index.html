@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>مدير النظام - التوزيع الجغرافي للعدادات</title>
+    <title>مدير النظام - التوزيع الجغرافي (مرن للأعمدة)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -36,7 +36,7 @@
 <body>
 <div class="container">
     <div class="header">
-        <h1>📊 مدير التوزيع الجغرافي (مع صلاحية روابط الفرق)</h1>
+        <h1>📊 مدير التوزيع الجغرافي (مرن للأعمدة الإضافية)</h1>
         <div>
             <button onclick="refreshData()">🔄 تحديث</button>
             <button onclick="exportToExcel()" style="background:#27ae60;">📎 Excel</button>
@@ -44,7 +44,7 @@
         </div>
     </div>
     <div class="upload-area">
-        <h3>📂 رفع الملفات (يدعم CSV/Excel)</h3>
+        <h3>📂 رفع الملفات (يدعم أي أعمدة إضافية مثل: نوع القفل، الملاحظات، ...)</h3>
         <div class="upload-form">
             <div class="form-group"><label>ملف البيانات (عدادات):</label><input type="file" id="dataFile" accept=".csv,.xlsx"></div>
             <div class="form-group"><label>ملف KML:</label><input type="file" id="kmlFile" accept=".kml"></div>
@@ -58,17 +58,16 @@
     <div class="teams-table">
         <h3>📋 الفرق والروابط (تنتهي صلاحيتها بعد 24 ساعة)</h3>
         <table id="teamsTable">
-            <thead><tr><th>الفرقة</th><th>العدادات</th><th>تم</th><th>متبقي</th><th>الرابط</th><th>صلاحية الرابط</th></tr></thead>
+            <thead>汽<th>الفرقة</th><th>العدادات</th><th>تم</th><th>متبقي</th><th>الرابط</th><th>صلاحية الرابط</th> </thead>
             <tbody></tbody>
         </table>
     </div>
     <div class="log-area" id="logArea">📋 سجل العمليات...</div>
-    <div class="footer">✅ تظهر أرقام العدادات على الخريطة | يتم تجديد الروابط تلقائياً كل 24 ساعة</div>
+    <div class="footer">✅ تظهر أرقام العدادات والبيانات الإضافية على الخريطة</div>
 </div>
 
 <script>
-    // رابط Google Apps Script (تم تثبيته)
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwijQmkG1sfBR48yhYn2wdIjmb4aCRaUMu31WSHn5UDIlHLvS9ASYj7nL06qGODBIeBUA/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw4E7ZFs81Pz_xHBjRJ5B76b0ADRJBMcif_GV9rOCNzNgXxtpC7_GD_2ggsid2cn45T8A/exec';
     let map, markersLayer, polygonLayer;
 
     function log(msg) {
@@ -78,6 +77,7 @@
         console.log(msg);
     }
 
+    // دالة ذكية لتحديد الإجراء الأساسي (قفل/فتح/ملصق)
     function detectAction(text) {
         if (!text) return 'unknown';
         const str = text.toString().trim().toLowerCase();
@@ -87,6 +87,7 @@
         return 'unknown';
     }
 
+    // إنشاء أيقونة مخصصة تحوي رقم العداد
     function getMeterIcon(meter) {
         let bgColor = '#95a5a6';
         if (meter.status === 'completed') bgColor = '#bdc3c7';
@@ -100,6 +101,33 @@
         });
     }
 
+    // بناء نص البوب أب ليشمل كل البيانات الإضافية
+    function buildPopupContent(meter) {
+        let actionText = { lock:'قفل', unlock:'فتح', sticker:'وضع ملصق' }[meter.action] || 'غير معروف';
+        let statusText = meter.status === 'completed' ? '✅ تم الإنجاز' : '⏳ قيد الانتظار';
+        let extraHtml = '';
+        if (meter.extra && Object.keys(meter.extra).length > 0) {
+            extraHtml = '<hr><div style="text-align:right; font-size:11px;">📌 بيانات إضافية:<br>';
+            for (let [key, val] of Object.entries(meter.extra)) {
+                if (val && val.toString().trim() !== '') {
+                    extraHtml += `<span style="font-weight:bold;">${key}:</span> ${val}<br>`;
+                }
+            }
+            extraHtml += '</div>';
+        }
+        return `
+            <div style="text-align:center; min-width:180px;">
+                <b>🚦 العداد: ${meter.meterId}</b><br>
+                📋 الإجراء الأساسي: ${actionText}<br>
+                📍 الحالة: ${statusText}<br>
+                ${extraHtml}
+                ${meter.completedAt ? '🕒 وقت الإنجاز: ' + new Date(meter.completedAt).toLocaleString() + '<br>' : ''}
+                <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')" style="margin-top:5px;">🧭 التنقل</button>
+            </div>
+        `;
+    }
+
+    // قراءة الملف (CSV/Excel) مع التقاط كل الأعمدة
     async function parseDataFile(file) {
         return new Promise((resolve, reject) => {
             const ext = file.name.split('.').pop().toLowerCase();
@@ -113,9 +141,10 @@
                     const firstLine = lines[0];
                     const hasHeaders = !firstLine.match(/^[\d\.\,\"\s\-]+$/);
                     let startIdx = 0;
-                    let colIdx = { id: 0, lat: 1, lng: 2, action: 3 };
+                    let headers = [];
+                    let colIdx = { id: -1, lat: -1, lng: -1, action: -1 };
                     if (hasHeaders) {
-                        const headers = firstLine.split(',').map(h => h.trim().replace(/["']/g, '').toLowerCase());
+                        headers = firstLine.split(',').map(h => h.trim().replace(/["']/g, '').toLowerCase());
                         for (let i=0; i<headers.length; i++) {
                             const h = headers[i];
                             if (h.match(/(meter|id|رقم|meterid)/i)) colIdx.id = i;
@@ -124,6 +153,13 @@
                             if (h.match(/(action|الإجراء|الاجراء)/i)) colIdx.action = i;
                         }
                         startIdx = 1;
+                    } else {
+                        // افتراض ترتيب الأعمدة: meter_id, lat, lng, action ثم الباقي
+                        headers = ['meter_id','lat','lng','action','extra1','extra2','extra3']; // مؤقت
+                        colIdx = { id:0, lat:1, lng:2, action:3 };
+                    }
+                    if (colIdx.id === -1 || colIdx.lat === -1 || colIdx.lng === -1) {
+                        return reject(new Error('لم يتم العثور على أعمدة أساسية (meter_id, lat, lng)'));
                     }
                     for (let i=startIdx; i<lines.length; i++) {
                         const line = lines[i].trim();
@@ -140,47 +176,73 @@
                         const meterId = parts[colIdx.id]?.replace(/["']/g, '');
                         const lat = parseFloat(parts[colIdx.lat]?.replace(/["']/g, ''));
                         const lng = parseFloat(parts[colIdx.lng]?.replace(/["']/g, ''));
-                        const actionRaw = (colIdx.action < parts.length && parts[colIdx.action]) ? parts[colIdx.action].replace(/["']/g, '') : '';
+                        const actionRaw = (colIdx.action !== -1 && parts[colIdx.action]) ? parts[colIdx.action].replace(/["']/g, '') : '';
                         const action = detectAction(actionRaw);
                         if (meterId && !isNaN(lat) && !isNaN(lng)) {
-                            meters.push({ id: crypto.randomUUID(), meterId: String(meterId), lat, lng, action, status: 'pending', completedAt: null, teamId: null });
+                            // جمع كل البيانات الإضافية
+                            let extra = {};
+                            for (let j=0; j<parts.length; j++) {
+                                if (j !== colIdx.id && j !== colIdx.lat && j !== colIdx.lng && j !== colIdx.action) {
+                                    let headerName = (hasHeaders && j < headers.length) ? headers[j] : `عمود_${j+1}`;
+                                    let val = parts[j]?.replace(/["']/g, '').trim();
+                                    if (val) extra[headerName] = val;
+                                }
+                            }
+                            meters.push({
+                                id: crypto.randomUUID(),
+                                meterId: String(meterId),
+                                lat, lng, action,
+                                status: 'pending', completedAt: null, teamId: null,
+                                extra: extra
+                            });
                         }
                     }
-                } else if (ext === 'xlsx') {
+                } 
+                else if (ext === 'xlsx') {
                     const data = new Uint8Array(e.target.result);
                     const wb = XLSX.read(data, { type: 'array' });
                     const sheet = wb.Sheets[wb.SheetNames[0]];
                     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
                     if (rows.length < 2) return reject(new Error('Excel فارغ'));
-                    const firstRow = rows[0];
-                    const hasHeaders = firstRow.some(cell => typeof cell === 'string' && !cell.match(/^[\d\.\-]+$/));
-                    let startIdx = 0;
-                    let colIdx = { id: 0, lat: 1, lng: 2, action: 3 };
-                    if (hasHeaders) {
-                        const headers = firstRow.map(c => String(c).trim().toLowerCase());
-                        for (let i=0; i<headers.length; i++) {
-                            const h = headers[i];
-                            if (h.match(/(meter|id|رقم|meterid)/i)) colIdx.id = i;
-                            if (h.match(/(lat|عرض|y|latitude)/i)) colIdx.lat = i;
-                            if (h.match(/(lng|lon|طول|x|longitude)/i)) colIdx.lng = i;
-                            if (h.match(/(action|الإجراء|الاجراء)/i)) colIdx.action = i;
-                        }
-                        startIdx = 1;
+                    const headers = rows[0].map(c => String(c).trim().toLowerCase());
+                    let colIdx = { id: -1, lat: -1, lng: -1, action: -1 };
+                    for (let i=0; i<headers.length; i++) {
+                        const h = headers[i];
+                        if (h.match(/(meter|id|رقم|meterid)/i)) colIdx.id = i;
+                        if (h.match(/(lat|عرض|y|latitude)/i)) colIdx.lat = i;
+                        if (h.match(/(lng|lon|طول|x|longitude)/i)) colIdx.lng = i;
+                        if (h.match(/(action|الإجراء|الاجراء)/i)) colIdx.action = i;
                     }
-                    for (let i=startIdx; i<rows.length; i++) {
+                    if (colIdx.id === -1 || colIdx.lat === -1 || colIdx.lng === -1) {
+                        return reject(new Error('الأعمدة الأساسية غير موجودة'));
+                    }
+                    for (let i=1; i<rows.length; i++) {
                         const row = rows[i];
                         if (!row || row.length < 3) continue;
                         const meterId = row[colIdx.id] ? String(row[colIdx.id]).trim() : '';
                         const lat = parseFloat(row[colIdx.lat]);
                         const lng = parseFloat(row[colIdx.lng]);
-                        const actionRaw = row[colIdx.action] ? String(row[colIdx.action]).trim() : '';
+                        const actionRaw = (colIdx.action !== -1 && row[colIdx.action]) ? String(row[colIdx.action]).trim() : '';
                         const action = detectAction(actionRaw);
                         if (meterId && !isNaN(lat) && !isNaN(lng)) {
-                            meters.push({ id: crypto.randomUUID(), meterId, lat, lng, action, status: 'pending', completedAt: null, teamId: null });
+                            let extra = {};
+                            for (let j=0; j<row.length; j++) {
+                                if (j !== colIdx.id && j !== colIdx.lat && j !== colIdx.lng && j !== colIdx.action) {
+                                    let headerName = (j < headers.length) ? headers[j] : `عمود_${j+1}`;
+                                    let val = row[j] ? String(row[j]).trim() : '';
+                                    if (val) extra[headerName] = val;
+                                }
+                            }
+                            meters.push({
+                                id: crypto.randomUUID(),
+                                meterId, lat, lng, action,
+                                status: 'pending', completedAt: null, teamId: null,
+                                extra: extra
+                            });
                         }
                     }
                 } else reject(new Error('نوع ملف غير مدعوم'));
-                log(`✅ تم قراءة ${meters.length} عداد`);
+                log(`✅ تم قراءة ${meters.length} عداد مع بيانات إضافية`);
                 resolve(meters);
             };
             reader.onerror = () => reject(new Error('فشل قراءة الملف'));
@@ -190,6 +252,7 @@
         });
     }
 
+    // دوال تحليل KML والتوزيع (نفس السابق مع بعض التعديلات الطفيفة)
     async function parseKMLFile(file, swapCoords) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -309,8 +372,7 @@
         for (let m of meters) {
             const icon = getMeterIcon(m);
             const marker = L.marker([m.lat, m.lng], { icon: icon }).addTo(markersLayer);
-            let actionText = { lock:'قفل', unlock:'فتح', sticker:'ملصق' }[m.action] || 'غير معروف';
-            marker.bindPopup(`<div style="text-align:center"><b>العداد: ${m.meterId}</b><br>الإجراء: ${actionText}<br>الحالة: ${m.status==='completed'?'✅ تم':'⏳ قيد'}<br><button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${m.lat},${m.lng}')">🧭 التنقل</button></div>`);
+            marker.bindPopup(buildPopupContent(m));
         }
     }
 
@@ -391,17 +453,27 @@
     async function exportToExcel() {
         const data = await loadFromGoogleSheets();
         if (!data?.meters) { alert('لا توجد بيانات'); return; }
-        const rows = data.meters.map(m => ({
-            'العداد': m.meterId, 'خط العرض': m.lat, 'خط الطول': m.lng,
-            'الإجراء': { lock:'قفل', unlock:'فتح', sticker:'ملصق' }[m.action] || m.action,
-            'الحالة': m.status==='completed'?'تم':'قيد',
-            'وقت الإنجاز': m.completedAt || '',
-            'الفرقة': data.teams.find(t=>t.id===m.teamId)?.name || ''
-        }));
+        const rows = data.meters.map(m => {
+            let baseRow = {
+                'رقم العداد': m.meterId,
+                'خط العرض': m.lat,
+                'خط الطول': m.lng,
+                'الإجراء الأساسي': { lock:'قفل', unlock:'فتح', sticker:'ملصق' }[m.action] || m.action,
+                'الحالة': m.status==='completed'?'تم':'قيد',
+                'وقت الإنجاز': m.completedAt || '',
+                'الفرقة': data.teams.find(t=>t.id===m.teamId)?.name || ''
+            };
+            if (m.extra && Object.keys(m.extra).length > 0) {
+                for (let [key, val] of Object.entries(m.extra)) {
+                    baseRow[key] = val;
+                }
+            }
+            return baseRow;
+        });
         const ws = XLSX.utils.json_to_sheet(rows);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'تقرير');
-        XLSX.writeFile(wb, `report_${new Date().toISOString().slice(0,19)}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, 'تقرير العدادات');
+        XLSX.writeFile(wb, `meter_report_${new Date().toISOString().slice(0,19)}.xlsx`);
     }
 
     async function refreshAllTokens() {
