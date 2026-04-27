@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>مدير النظام - أيقونات البالونة</title>
+    <title>مدير النظام - خرائط متعددة الطبقات</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -18,7 +18,7 @@
         button { background: #3498db; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
         .stats-cards { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
         .card { background: white; border-radius: 12px; padding: 15px; flex: 1; text-align: center; }
-        .map-container { height: 500px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #ddd; }
+        .map-container { height: 500px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #ddd; position: relative; }
         .teams-table { background: white; border-radius: 12px; overflow-x: auto; padding: 15px; margin-bottom: 20px; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 12px; text-align: center; border-bottom: 1px solid #eee; }
@@ -72,12 +72,45 @@
             background: rgba(255,255,255,0.8);
             border-radius: 50%;
         }
+        
+        /* لوحة التحكم بالطبقات */
+        .layer-control {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255,255,255,0.95);
+            padding: 8px 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 1000;
+            display: flex;
+            gap: 8px;
+            direction: ltr;
+            border: 1px solid #ddd;
+        }
+        .layer-control button {
+            background: #2c3e50;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: 0.2s;
+        }
+        .layer-control button.active {
+            background: #3498db;
+            box-shadow: 0 0 0 2px #ffd700;
+        }
+        .layer-control button:hover {
+            background: #1abc9c;
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <h1>📊 مدير التوزيع الجغرافي (بالونات)</h1>
+        <h1>📊 مدير التوزيع الجغرافي (خرائط متعددة)</h1>
         <div>
             <button onclick="refreshData()">🔄 تحديث</button>
             <button onclick="exportToExcel()" style="background:#27ae60;">📎 Excel</button>
@@ -101,7 +134,13 @@
         </div>
     </div>
     <div class="stats-cards" id="statsCards"></div>
-    <div class="map-container" id="managerMap"></div>
+    <div class="map-container" id="managerMap">
+        <div class="layer-control" id="layerControl">
+            <button data-layer="street" class="active">🗺️ عادي</button>
+            <button data-layer="satellite">🛰️ قمر صناعي</button>
+            <button data-layer="terrain">⛰️ تضاريس</button>
+        </div>
+    </div>
     <div class="teams-table">
         <h3>📋 الفرق والروابط (تنتهي صلاحيتها بعد 24 ساعة)</h3>
         <table id="teamsTable">
@@ -110,20 +149,56 @@
         </table>
     </div>
     <div class="log-area" id="logArea">📋 سجل العمليات...</div>
-    <div class="footer">✅ تظهر العدادات بشكل بالونة مع رقم العداد ولون حسب الإجراء</div>
+    <div class="footer">✅ يمكنك تبديل الخريطة: عادي، قمر صناعي، تضاريس | تظهر العدادات بشكل بالونة ملونة</div>
 </div>
 
 <script>
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyxCI2RK1mlSpTmdy2DKqExAED3yDYaU1phYy6KUjxzreGCLw1_hSkZVLdEUg7_s6SqSg/exec';
+    // رابط Google Apps Script
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzH03lCR9eNuGFqSp4dGhk1hrN6iLSRb-pRtdqrsy9BTuWVhy_wiKNn1jpB1WAfByF8AA/exec';
     let map, markersLayer, polygonLayer;
-
+    let currentTileLayer = null;
+    
+    // تعريف طبقات الخريطة
+    const tileLayers = {
+        street: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CartoDB'
+        }),
+        satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        }),
+        terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.opentopomap.org">OpenTopoMap</a> contributors'
+        })
+    };
+    
+    function switchLayer(layerName) {
+        if (currentTileLayer) map.removeLayer(currentTileLayer);
+        currentTileLayer = tileLayers[layerName];
+        currentTileLayer.addTo(map);
+        document.querySelectorAll('.layer-control button').forEach(btn => {
+            if (btn.dataset.layer === layerName) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+    }
+    
+    function initMap() {
+        map = L.map('managerMap').setView([27.545, 41.712], 12);
+        currentTileLayer = tileLayers.street;
+        currentTileLayer.addTo(map);
+        markersLayer = L.layerGroup().addTo(map);
+        polygonLayer = L.layerGroup().addTo(map);
+        document.querySelectorAll('.layer-control button').forEach(btn => {
+            btn.addEventListener('click', () => switchLayer(btn.dataset.layer));
+        });
+    }
+    
     function log(msg) {
         const logDiv = document.getElementById('logArea');
         logDiv.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
         logDiv.scrollTop = logDiv.scrollHeight;
         console.log(msg);
     }
-
+    
     function detectAction(text) {
         if (!text) return 'unknown';
         const str = text.toString().trim().toLowerCase();
@@ -132,15 +207,13 @@
         if (str.includes('ملصق') || str.includes('استيكر') || str === 'sticker') return 'sticker';
         return 'unknown';
     }
-
-    // إنشاء أيقونة بالونة
+    
     function createBalloonIcon(meter) {
         let bgColor = '#95a5a6';
         if (meter.status === 'completed') bgColor = '#7f8c8d';
         else if (meter.action === 'lock') bgColor = '#e74c3c';
         else if (meter.action === 'unlock') bgColor = '#2ecc71';
         else if (meter.action === 'sticker') bgColor = '#f39c12';
-        
         const html = `
             <div class="balloon-marker">
                 <div class="pin" style="background-color: ${bgColor};">
@@ -156,7 +229,7 @@
             popupAnchor: [0, -32]
         });
     }
-
+    
     function buildPopupContent(meter) {
         let actionText = { lock:'قفل', unlock:'فتح', sticker:'وضع ملصق' }[meter.action] || 'غير معروف';
         let statusText = meter.status === 'completed' ? '✅ تم الإنجاز' : '⏳ قيد الانتظار';
@@ -170,7 +243,7 @@
         }
         return `<div style="text-align:center; min-width:200px;"><b>🚦 العداد: ${meter.meterId}</b><br>📋 الإجراء: ${actionText}<br>📍 الحالة: ${statusText}<br>${extraHtml}${meter.completedAt ? '🕒 وقت الإنجاز: ' + new Date(meter.completedAt).toLocaleString() + '<br>' : ''}<button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')" style="margin-top:5px;">🧭 التنقل</button></div>`;
     }
-
+    
     // قراءة ملف البيانات (CSV/Excel) مع كل الأعمدة
     async function parseDataFile(file) {
         return new Promise((resolve, reject) => {
@@ -290,7 +363,7 @@
             else reject(new Error('امتداد غير مدعوم'));
         });
     }
-
+    
     // تحليل KML
     async function parseKMLFile(file, swapCoords) {
         return new Promise((resolve, reject) => {
@@ -331,7 +404,7 @@
             return { lat, lng };
         }).filter(p => !isNaN(p.lat) && !isNaN(p.lng));
     }
-
+    
     function isPointInPolygon(point, polygon) {
         let x = point.lng, y = point.lat, inside = false;
         for (let i=0, j=polygon.length-1; i<polygon.length; j=i++) {
@@ -342,7 +415,7 @@
         }
         return inside;
     }
-
+    
     function assignMetersToTeams(meters, polygons) {
         let teams = polygons.map((p,i) => ({
             id: crypto.randomUUID(), token: Math.random().toString(36).substring(2,12),
@@ -365,7 +438,7 @@
         teams = teams.filter(t => t.meterIds.length > 0);
         return { teams, meters };
     }
-
+    
     async function saveToGoogleSheets(teams, meters) {
         const payload = new URLSearchParams({ action:'uploadData', metersJson:JSON.stringify(meters), teamsJson:JSON.stringify(teams) }).toString();
         try {
@@ -374,7 +447,7 @@
             return result.success;
         } catch(e) { log('❌ خطأ في الحفظ: '+e.message); return false; }
     }
-
+    
     async function loadFromGoogleSheets() {
         try {
             const res = await fetch(`${SCRIPT_URL}?action=getManagerData`);
@@ -382,7 +455,7 @@
             return await res.json();
         } catch(e) { log('⚠️ فشل التحميل: '+e.message); return null; }
     }
-
+    
     async function appendMeters() {
         const appendFile = document.getElementById('appendFile').files[0];
         if (!appendFile) { alert('اختر ملف البيانات الجديد'); return; }
@@ -405,14 +478,7 @@
             } else alert('فشل حفظ البيانات بعد الإضافة');
         } catch(err) { alert('خطأ: '+err.message); log(err.message); }
     }
-
-    function initMap() {
-        map = L.map('managerMap').setView([27.545,41.712],12);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'© OSM'}).addTo(map);
-        markersLayer = L.layerGroup().addTo(map);
-        polygonLayer = L.layerGroup().addTo(map);
-    }
-
+    
     function updateMap(teams, meters) {
         markersLayer.clearLayers(); polygonLayer.clearLayers();
         for (let t of teams) {
@@ -427,12 +493,12 @@
             marker.bindPopup(buildPopupContent(m));
         }
     }
-
+    
     function updateStats(teams, meters) {
         const total=meters.length, completed=meters.filter(m=>m.status==='completed').length;
         document.getElementById('statsCards').innerHTML = `<div class="card"><h3>${total}</h3><p>إجمالي</p></div><div class="card"><h3 style="color:#2ecc71">${completed}</h3><p>تم</p></div><div class="card"><h3 style="color:#e67e22">${total-completed}</h3><p>متبقي</p></div><div class="card"><h3>${teams.length}</h3><p>الفرق</p></div>`;
     }
-
+    
     function updateTeamsTable(teams, meters) {
         const tbody = document.querySelector('#teamsTable tbody');
         tbody.innerHTML = '';
@@ -456,7 +522,7 @@
             row.insertCell(5).innerHTML = expiryHtml;
         }
     }
-
+    
     async function refreshData() {
         const data = await loadFromGoogleSheets();
         if (data?.teams && data?.meters) {
@@ -465,7 +531,7 @@
             updateTeamsTable(data.teams, data.meters);
         } else log('⚠️ لا توجد بيانات لعرضها');
     }
-
+    
     async function uploadAndProcess() {
         const dataFile = document.getElementById('dataFile').files[0];
         const kmlFile = document.getElementById('kmlFile').files[0];
@@ -485,7 +551,7 @@
             } else document.getElementById('uploadMsg').innerHTML = '⚠️ فشل الحفظ';
         } catch(err) { document.getElementById('uploadMsg').innerHTML = `❌ ${err.message}`; log(err.message); }
     }
-
+    
     async function exportToExcel() {
         const data = await loadFromGoogleSheets();
         if (!data?.meters) { alert('لا توجد بيانات'); return; }
@@ -499,7 +565,7 @@
         XLSX.utils.book_append_sheet(wb, ws, 'تقرير');
         XLSX.writeFile(wb, `report_${new Date().toISOString().slice(0,19)}.xlsx`);
     }
-
+    
     async function refreshAllTokens() {
         if (!confirm('سيتم تجديد روابط جميع الفرق لمدة 24 ساعة جديدة. هل تريد المتابعة؟')) return;
         try {
@@ -509,7 +575,7 @@
             else alert('فشل التجديد');
         } catch(err) { alert('خطأ في الاتصال'); }
     }
-
+    
     initMap();
     refreshData();
     setInterval(refreshData, 10000);
