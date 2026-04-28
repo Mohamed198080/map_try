@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>مدير النظام - مع موقعي الحالي</title>
+    <title>مدير النظام - إجراءات مرنة</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -31,132 +31,25 @@
         .swap-check { display: flex; align-items: center; gap: 8px; }
         .footer { text-align: center; margin-top: 30px; color: #7f8c8d; }
         
-        /* أيقونة البالونة */
-        .balloon-marker {
-            background: transparent;
-            width: 36px;
-            height: 36px;
-            text-align: center;
-            font-weight: bold;
-            font-size: 12px;
-            color: white;
-            position: relative;
-        }
-        .balloon-marker .pin {
-            width: 32px;
-            height: 32px;
-            border-radius: 50% 50% 50% 0;
-            transform: rotate(-45deg);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            position: absolute;
-            top: 0;
-            left: 2px;
-        }
-        .balloon-marker .pin .number {
-            transform: rotate(45deg);
-            font-weight: bold;
-            font-size: 11px;
-            color: white;
-            text-shadow: 0 0 1px black;
-        }
-        .balloon-marker .pin::after {
-            content: '';
-            position: absolute;
-            bottom: -5px;
-            left: 12px;
-            width: 6px;
-            height: 6px;
-            background: rgba(255,255,255,0.8);
-            border-radius: 50%;
-        }
+        .balloon-marker { background: transparent; width: 36px; height: 36px; text-align: center; font-weight: bold; font-size: 12px; color: white; position: relative; }
+        .balloon-marker .pin { width: 32px; height: 32px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3); position: absolute; top: 0; left: 2px; }
+        .balloon-marker .pin .number { transform: rotate(45deg); font-weight: bold; font-size: 11px; color: white; text-shadow: 0 0 1px black; }
+        .balloon-marker .pin::after { content: ''; position: absolute; bottom: -5px; left: 12px; width: 6px; height: 6px; background: rgba(255,255,255,0.8); border-radius: 50%; }
         
-        /* لوحة التحكم بالطبقات */
-        .layer-control {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(255,255,255,0.95);
-            padding: 8px 12px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            z-index: 1000;
-            display: flex;
-            gap: 8px;
-            direction: ltr;
-            border: 1px solid #ddd;
-        }
-        .layer-control button {
-            background: #2c3e50;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: 0.2s;
-        }
-        .layer-control button.active {
-            background: #3498db;
-            box-shadow: 0 0 0 2px #ffd700;
-        }
-        .layer-control button:hover {
-            background: #1abc9c;
-        }
-        
-        /* زر موقعي الحالي */
-        .my-location-btn {
-            position: absolute;
-            bottom: 20px;
-            right: 10px;
-            background: #fff;
-            padding: 8px 12px;
-            border-radius: 30px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            z-index: 1000;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: bold;
-            border: none;
-            background-color: #3498db;
-            color: white;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .my-location-btn:hover {
-            background-color: #2980b9;
-        }
-        
-        /* علامة الموقع الحالي */
-        .current-location-marker {
-            background: #4285F4;
-            border: 2px solid white;
-            border-radius: 50%;
-            width: 16px;
-            height: 16px;
-            box-shadow: 0 0 8px rgba(0,0,0,0.3);
-        }
-        .current-location-pulse {
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            background: rgba(66, 133, 244, 0.3);
-            position: relative;
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-            0% { transform: scale(0.5); opacity: 1; }
-            100% { transform: scale(1.5); opacity: 0; }
-        }
+        .layer-control { position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.95); padding: 8px 12px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 1000; display: flex; gap: 8px; direction: ltr; border: 1px solid #ddd; }
+        .layer-control button { background: #2c3e50; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .layer-control button.active { background: #3498db; }
+        .my-location-btn { position: absolute; bottom: 20px; right: 10px; background: #fff; padding: 8px 12px; border-radius: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); z-index: 1000; cursor: pointer; font-size: 14px; font-weight: bold; border: none; background-color: #3498db; color: white; display: flex; align-items: center; gap: 5px; }
+        .my-location-btn:hover { background-color: #2980b9; }
+        .current-location-marker { background: #4285F4; border: 2px solid white; border-radius: 50%; width: 16px; height: 16px; box-shadow: 0 0 8px rgba(0,0,0,0.3); }
+        .current-location-pulse { border-radius: 50%; width: 40px; height: 40px; background: rgba(66, 133, 244, 0.3); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <h1>📊 مدير التوزيع الجغرافي (مع موقعي الحالي)</h1>
+        <h1>📊 مدير التوزيع الجغرافي (إجراءات مرنة)</h1>
         <div>
             <button onclick="refreshData()">🔄 تحديث</button>
             <button onclick="exportToExcel()" style="background:#27ae60;">📎 Excel</button>
@@ -164,7 +57,7 @@
         </div>
     </div>
     <div class="upload-area">
-        <h3>📂 رفع الملفات (يدعم أي أعمدة إضافية)</h3>
+        <h3>📂 رفع الملفات (يدعم أي أعمدة إضافية وأي إجراءات)</h3>
         <div class="upload-form">
             <div class="form-group"><label>ملف البيانات (عدادات):</label><input type="file" id="dataFile" accept=".csv,.xlsx"></div>
             <div class="form-group"><label>ملف KML:</label><input type="file" id="kmlFile" accept=".kml"></div>
@@ -196,152 +89,34 @@
         </table>
     </div>
     <div class="log-area" id="logArea">📋 سجل العمليات...</div>
-    <div class="footer">✅ يمكنك تبديل الخريطة وعرض موقعك الحالي | تظهر العدادات بشكل بالونة ملونة</div>
+    <div class="footer">✅ إجراءات مرنة: أي نص في عمود الإجراء سيكون مقبولاً ويظهر بلون ثابت على الخريطة</div>
 </div>
 
 <script>
-    // رابط Google Apps Script
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzH03lCR9eNuGFqSp4dGhk1hrN6iLSRb-pRtdqrsy9BTuWVhy_wiKNn1jpB1WAfByF8AA/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwsNzELqNAkfi0ehlpRBBvO9MticbF5Pz-QFC8zARduqHqUXWN04cr5OS1lJX50diKygA/exec';
     let map, markersLayer, polygonLayer;
     let currentTileLayer = null;
-    let currentLocationMarker = null;
-    let currentLocationCircle = null;
+    let currentLocationMarker = null, currentLocationCircle = null;
     
-    // تعريف طبقات الخريطة
+    function getColorFromAction(action, status) {
+        if (status === 'completed') return '#7f8c8d';
+        let hash = 0;
+        for (let i = 0; i < action.length; i++) { hash = ((hash << 5) - hash) + action.charCodeAt(i); hash |= 0; }
+        const hue = Math.abs(hash % 360);
+        return `hsl(${hue}, 70%, 55%)`;
+    }
+    
     const tileLayers = {
-        street: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CartoDB'
-        }),
-        satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-        }),
-        terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.opentopomap.org">OpenTopoMap</a> contributors'
-        })
+        street: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OSM & CartoDB' }),
+        satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles Esri' }),
+        terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenTopoMap' })
     };
+    function switchLayer(layerName) { if (currentTileLayer) map.removeLayer(currentTileLayer); currentTileLayer = tileLayers[layerName]; currentTileLayer.addTo(map); document.querySelectorAll('.layer-control button').forEach(btn => { if (btn.dataset.layer === layerName) btn.classList.add('active'); else btn.classList.remove('active'); }); }
+    function showMyLocation() { if (!navigator.geolocation) { alert("المتصفح لا يدعم تحديد الموقع"); return; } navigator.geolocation.getCurrentPosition(pos => { const lat=pos.coords.latitude, lng=pos.coords.longitude; if(currentLocationMarker) map.removeLayer(currentLocationMarker); if(currentLocationCircle) map.removeLayer(currentLocationCircle); const icon = L.divIcon({className:'current-location-marker', iconSize:[16,16], popupAnchor:[0,-8]}); currentLocationMarker = L.marker([lat,lng],{icon:icon}).addTo(map).bindPopup("📍 أنت هنا").openPopup(); currentLocationCircle = L.circle([lat,lng], {radius:30, color:'#4285F4', fillColor:'#4285F4', fillOpacity:0.2, weight:1}).addTo(map); map.setView([lat,lng],15); }, err => alert(err.message), {enableHighAccuracy:true, timeout:10000}); }
+    function initMap() { map = L.map('managerMap').setView([27.545,41.712],12); currentTileLayer = tileLayers.street; currentTileLayer.addTo(map); markersLayer = L.layerGroup().addTo(map); polygonLayer = L.layerGroup().addTo(map); document.querySelectorAll('.layer-control button').forEach(btn => btn.addEventListener('click', () => switchLayer(btn.dataset.layer))); document.getElementById('myLocationBtn').addEventListener('click', showMyLocation); }
     
-    function switchLayer(layerName) {
-        if (currentTileLayer) map.removeLayer(currentTileLayer);
-        currentTileLayer = tileLayers[layerName];
-        currentTileLayer.addTo(map);
-        document.querySelectorAll('.layer-control button').forEach(btn => {
-            if (btn.dataset.layer === layerName) btn.classList.add('active');
-            else btn.classList.remove('active');
-        });
-    }
+    function log(msg) { const logDiv = document.getElementById('logArea'); logDiv.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`; logDiv.scrollTop = logDiv.scrollHeight; console.log(msg); }
     
-    // دالة عرض الموقع الحالي
-    function showMyLocation() {
-        if (!navigator.geolocation) {
-            alert("المتصفح لا يدعم تحديد الموقع الجغرافي");
-            return;
-        }
-        navigator.geolocation.getCurrentPosition(
-            function(position) {
-                const lat = position.coords.latitude;
-                const lng = position.coords.longitude;
-                // إزالة العلامة السابقة إن وجدت
-                if (currentLocationMarker) map.removeLayer(currentLocationMarker);
-                if (currentLocationCircle) map.removeLayer(currentLocationCircle);
-                // إضافة علامة موقعي الحالي (دائرة زرقاء متحركة)
-                const customIcon = L.divIcon({
-                    className: 'current-location-marker',
-                    iconSize: [16, 16],
-                    popupAnchor: [0, -8]
-                });
-                currentLocationMarker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
-                currentLocationMarker.bindPopup("📍 أنت هنا").openPopup();
-                // إضافة دائرة نصف قطرها 30 متر للدقة مع تأثير نبض
-                currentLocationCircle = L.circle([lat, lng], {
-                    radius: 30,
-                    color: '#4285F4',
-                    fillColor: '#4285F4',
-                    fillOpacity: 0.2,
-                    weight: 1,
-                    className: 'current-location-pulse'
-                }).addTo(map);
-                // تحريك الخريطة إلى الموقع
-                map.setView([lat, lng], 15);
-            },
-            function(error) {
-                let msg = "";
-                switch(error.code) {
-                    case error.PERMISSION_DENIED: msg = "تم رفض الوصول إلى الموقع"; break;
-                    case error.POSITION_UNAVAILABLE: msg = "معلومات الموقع غير متوفرة"; break;
-                    case error.TIMEOUT: msg = "انتهى وقت محاولة تحديد الموقع"; break;
-                    default: msg = "خطأ غير معروف";
-                }
-                alert(msg);
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-    }
-    
-    function initMap() {
-        map = L.map('managerMap').setView([27.545, 41.712], 12);
-        currentTileLayer = tileLayers.street;
-        currentTileLayer.addTo(map);
-        markersLayer = L.layerGroup().addTo(map);
-        polygonLayer = L.layerGroup().addTo(map);
-        document.querySelectorAll('.layer-control button').forEach(btn => {
-            btn.addEventListener('click', () => switchLayer(btn.dataset.layer));
-        });
-        document.getElementById('myLocationBtn').addEventListener('click', showMyLocation);
-    }
-    
-    function log(msg) {
-        const logDiv = document.getElementById('logArea');
-        logDiv.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
-        logDiv.scrollTop = logDiv.scrollHeight;
-        console.log(msg);
-    }
-    
-    function detectAction(text) {
-        if (!text) return 'unknown';
-        const str = text.toString().trim().toLowerCase();
-        if (str.includes('قفل') || str.includes('اغلاق') || str.includes('غلق') || str === 'lock') return 'lock';
-        if (str.includes('فتح') || str === 'unlock' || str.includes('open')) return 'unlock';
-        if (str.includes('ملصق') || str.includes('استيكر') || str === 'sticker') return 'sticker';
-        return 'unknown';
-    }
-    
-    function createBalloonIcon(meter) {
-        let bgColor = '#95a5a6';
-        if (meter.status === 'completed') bgColor = '#7f8c8d';
-        else if (meter.action === 'lock') bgColor = '#e74c3c';
-        else if (meter.action === 'unlock') bgColor = '#2ecc71';
-        else if (meter.action === 'sticker') bgColor = '#f39c12';
-        const html = `
-            <div class="balloon-marker">
-                <div class="pin" style="background-color: ${bgColor};">
-                    <div class="number">${meter.meterId.length > 4 ? meter.meterId.slice(0,4) : meter.meterId}</div>
-                </div>
-            </div>
-        `;
-        return L.divIcon({
-            className: 'balloon-marker-container',
-            html: html,
-            iconSize: [36, 36],
-            iconAnchor: [18, 32],
-            popupAnchor: [0, -32]
-        });
-    }
-    
-    function buildPopupContent(meter) {
-        let actionText = { lock:'قفل', unlock:'فتح', sticker:'وضع ملصق' }[meter.action] || 'غير معروف';
-        let statusText = meter.status === 'completed' ? '✅ تم الإنجاز' : '⏳ قيد الانتظار';
-        let extraHtml = '';
-        if (meter.extra && Object.keys(meter.extra).length > 0) {
-            extraHtml = '<hr><div style="text-align:right; font-size:11px;">📌 بيانات إضافية:<br>';
-            for (let [key, val] of Object.entries(meter.extra)) {
-                if (val && val.toString().trim() !== '') extraHtml += `<span style="font-weight:bold;">${key}:</span> ${val}<br>`;
-            }
-            extraHtml += '</div>';
-        }
-        return `<div style="text-align:center; min-width:200px;"><b>🚦 العداد: ${meter.meterId}</b><br>📋 الإجراء: ${actionText}<br>📍 الحالة: ${statusText}<br>${extraHtml}${meter.completedAt ? '🕒 وقت الإنجاز: ' + new Date(meter.completedAt).toLocaleString() + '<br>' : ''}<button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')" style="margin-top:5px;">🧭 التنقل</button></div>`;
-    }
-    
-    // قراءة ملف البيانات (CSV/Excel) مع كل الأعمدة
     async function parseDataFile(file) {
         return new Promise((resolve, reject) => {
             const ext = file.name.split('.').pop().toLowerCase();
@@ -372,7 +147,7 @@
                         colIdx = { id:0, lat:1, lng:2, action:3 };
                     }
                     if (colIdx.id === -1 || colIdx.lat === -1 || colIdx.lng === -1)
-                        return reject(new Error('الأعمدة الأساسية (meter_id, lat, lng) غير موجودة'));
+                        return reject(new Error('الأعمدة الأساسية غير موجودة'));
                     for (let i=startIdx; i<lines.length; i++) {
                         const line = lines[i].trim();
                         if (!line) continue;
@@ -388,8 +163,7 @@
                         const meterId = parts[colIdx.id]?.replace(/["']/g, '');
                         const lat = parseFloat(parts[colIdx.lat]?.replace(/["']/g, ''));
                         const lng = parseFloat(parts[colIdx.lng]?.replace(/["']/g, ''));
-                        const actionRaw = (colIdx.action !== -1 && parts[colIdx.action]) ? parts[colIdx.action].replace(/["']/g, '') : '';
-                        const action = detectAction(actionRaw);
+                        let actionRaw = (colIdx.action !== -1 && parts[colIdx.action]) ? parts[colIdx.action].replace(/["']/g, '') : '';
                         if (meterId && !isNaN(lat) && !isNaN(lng)) {
                             let extra = {};
                             for (let j=0; j<parts.length; j++) {
@@ -402,7 +176,8 @@
                             meters.push({
                                 id: crypto.randomUUID(),
                                 meterId: String(meterId),
-                                lat, lng, action,
+                                lat, lng,
+                                action: actionRaw || 'unknown',
                                 status: 'pending', completedAt: null, teamId: null,
                                 extra: extra
                             });
@@ -423,8 +198,7 @@
                         if (h.match(/(lng|lon|طول|x|longitude)/i)) colIdx.lng = i;
                         if (h.match(/(action|الإجراء|الاجراء)/i)) colIdx.action = i;
                     }
-                    if (colIdx.id === -1 || colIdx.lat === -1 || colIdx.lng === -1)
-                        return reject(new Error('الأعمدة الأساسية غير موجودة'));
+                    if (colIdx.id === -1 || colIdx.lat === -1 || colIdx.lng === -1) reject(new Error('الأعمدة الأساسية غير موجودة'));
                     for (let i=1; i<rows.length; i++) {
                         const row = rows[i];
                         if (!row || row.length < 3) continue;
@@ -432,7 +206,6 @@
                         const lat = parseFloat(row[colIdx.lat]);
                         const lng = parseFloat(row[colIdx.lng]);
                         const actionRaw = (colIdx.action !== -1 && row[colIdx.action]) ? String(row[colIdx.action]).trim() : '';
-                        const action = detectAction(actionRaw);
                         if (meterId && !isNaN(lat) && !isNaN(lng)) {
                             let extra = {};
                             for (let j=0; j<row.length; j++) {
@@ -444,7 +217,8 @@
                             }
                             meters.push({
                                 id: crypto.randomUUID(),
-                                meterId, lat, lng, action,
+                                meterId, lat, lng,
+                                action: actionRaw || 'unknown',
                                 status: 'pending', completedAt: null, teamId: null,
                                 extra: extra
                             });
@@ -461,7 +235,6 @@
         });
     }
     
-    // تحليل KML
     async function parseKMLFile(file, swapCoords) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -494,188 +267,27 @@
             reader.readAsText(file);
         });
     }
-    function parseKMLCoords(coordStr, swap) {
-        return coordStr.trim().split(/\s+/).map(p => {
-            let [lng, lat] = p.split(',').map(Number);
-            if (swap) [lat, lng] = [lng, lat];
-            return { lat, lng };
-        }).filter(p => !isNaN(p.lat) && !isNaN(p.lng));
-    }
+    function parseKMLCoords(coordStr, swap) { return coordStr.trim().split(/\s+/).map(p => { let [lng, lat] = p.split(',').map(Number); if (swap) [lat, lng] = [lng, lat]; return { lat, lng }; }).filter(p => !isNaN(p.lat) && !isNaN(p.lng)); }
+    function isPointInPolygon(point, polygon) { let x=point.lng, y=point.lat, inside=false; for (let i=0,j=polygon.length-1; i<polygon.length; j=i++) { let xi=polygon[i].lng, yi=polygon[i].lat, xj=polygon[j].lng, yj=polygon[j].lat; let intersect = ((yi>y)!=(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi); if (intersect) inside=!inside; } return inside; }
+    function assignMetersToTeams(meters, polygons) { let teams = polygons.map((p,i) => ({ id: crypto.randomUUID(), token: Math.random().toString(36).substring(2,12), name: p.name || `الفرقة ${i+1}`, polygonCoords: p.coords, meterIds: [] })); let assigned=0; for (let m of meters) { let found=false; for (let t of teams) { if (isPointInPolygon({lat:m.lat, lng:m.lng}, t.polygonCoords)) { t.meterIds.push(m.id); m.teamId=t.id; assigned++; found=true; break; } } if (!found) { let def = teams.find(t=>t.name==='خارج المناطق'); if (!def) { def = { id:crypto.randomUUID(), token:Math.random().toString(36).substring(2,12), name:'خارج المناطق', polygonCoords:[], meterIds:[] }; teams.push(def); } def.meterIds.push(m.id); m.teamId = def.id; } } teams = teams.filter(t=>t.meterIds.length>0); return { teams, meters }; }
     
-    function isPointInPolygon(point, polygon) {
-        let x = point.lng, y = point.lat, inside = false;
-        for (let i=0, j=polygon.length-1; i<polygon.length; j=i++) {
-            let xi = polygon[i].lng, yi = polygon[i].lat;
-            let xj = polygon[j].lng, yj = polygon[j].lat;
-            let intersect = ((yi>y) != (yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi);
-            if (intersect) inside = !inside;
-        }
-        return inside;
-    }
+    async function saveToGoogleSheets(teams, meters) { const payload = new URLSearchParams({ action:'uploadData', metersJson:JSON.stringify(meters), teamsJson:JSON.stringify(teams) }).toString(); try { const res = await fetch(SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:payload }); const result = await res.json(); return result.success; } catch(e) { log('❌ خطأ في الحفظ: '+e.message); return false; } }
+    async function loadFromGoogleSheets() { try { const res = await fetch(`${SCRIPT_URL}?action=getManagerData`); if (!res.ok) throw new Error(`HTTP ${res.status}`); return await res.json(); } catch(e) { log('⚠️ فشل التحميل: '+e.message); return null; } }
     
-    function assignMetersToTeams(meters, polygons) {
-        let teams = polygons.map((p,i) => ({
-            id: crypto.randomUUID(), token: Math.random().toString(36).substring(2,12),
-            name: p.name || `الفرقة ${i+1}`, polygonCoords: p.coords, meterIds: []
-        }));
-        let assigned = 0;
-        for (let m of meters) {
-            let found = false;
-            for (let t of teams) {
-                if (isPointInPolygon({ lat: m.lat, lng: m.lng }, t.polygonCoords)) {
-                    t.meterIds.push(m.id); m.teamId = t.id; assigned++; found = true; break;
-                }
-            }
-            if (!found) {
-                let def = teams.find(t => t.name === 'خارج المناطق');
-                if (!def) { def = { id: crypto.randomUUID(), token: Math.random().toString(36).substring(2,12), name: 'خارج المناطق', polygonCoords: [], meterIds: [] }; teams.push(def); }
-                def.meterIds.push(m.id); m.teamId = def.id;
-            }
-        }
-        teams = teams.filter(t => t.meterIds.length > 0);
-        return { teams, meters };
-    }
+    async function appendMeters() { const appendFile = document.getElementById('appendFile').files[0]; if (!appendFile) { alert('اختر ملف البيانات الجديد'); return; } try { const newMeters = await parseDataFile(appendFile); if (newMeters.length === 0) throw new Error('لا توجد عدادات صالحة'); const currentData = await loadFromGoogleSheets(); if (!currentData || !currentData.meters) throw new Error('لا توجد بيانات حالية'); const existingIds = new Set(currentData.meters.map(m => m.meterId)); const metersToAdd = newMeters.filter(m => !existingIds.has(m.meterId)); if (metersToAdd.length === 0) { alert('جميع العدادات موجودة'); return; } const allMeters = [...currentData.meters, ...metersToAdd]; const polygons = currentData.teams.map(t => ({ name: t.name, coords: t.polygonCoords })); if (polygons.length === 0) throw new Error('لا توجد مناطق محددة'); const { teams, meters: reassigned } = assignMetersToTeams(allMeters, polygons); const saved = await saveToGoogleSheets(teams, reassigned); if (saved) { alert(`تمت إضافة ${metersToAdd.length} عداد`); refreshData(); } else alert('فشل الحفظ'); } catch(err) { alert('خطأ: '+err.message); log(err.message); } }
     
-    async function saveToGoogleSheets(teams, meters) {
-        const payload = new URLSearchParams({ action:'uploadData', metersJson:JSON.stringify(meters), teamsJson:JSON.stringify(teams) }).toString();
-        try {
-            const res = await fetch(SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:payload });
-            const result = await res.json();
-            return result.success;
-        } catch(e) { log('❌ خطأ في الحفظ: '+e.message); return false; }
-    }
+    function createBalloonIcon(meter) { const bgColor = (meter.status === 'completed') ? '#7f8c8d' : getColorFromAction(meter.action, meter.status); const html = `<div class="balloon-marker"><div class="pin" style="background-color: ${bgColor};"><div class="number">${meter.meterId.length > 4 ? meter.meterId.slice(0,4) : meter.meterId}</div></div></div>`; return L.divIcon({ className: 'balloon-marker-container', html: html, iconSize: [36,36], iconAnchor: [18,32], popupAnchor: [0,-32] }); }
+    function buildPopupContent(meter) { let actionText = meter.action || 'غير معروف'; let extraHtml = ''; if (meter.extra && Object.keys(meter.extra).length) { extraHtml = '<hr><div style="text-align:right; font-size:11px;">📌 بيانات إضافية:<br>'; for (let [k,v] of Object.entries(meter.extra)) if(v) extraHtml += `<span style="font-weight:bold;">${k}:</span> ${v}<br>`; extraHtml += '</div>'; } return `<div style="text-align:center; min-width:200px;"><b>🚦 العداد: ${meter.meterId}</b><br>📋 الإجراء: ${actionText}<br>📍 الحالة: ${meter.status==='completed'?'✅ تم':'⏳ قيد'}<br>${extraHtml}${meter.completedAt ? '🕒 وقت الإنجاز: '+new Date(meter.completedAt).toLocaleString()+'<br>' : ''}<button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')" style="margin-top:5px;">🧭 التنقل</button></div>`; }
     
-    async function loadFromGoogleSheets() {
-        try {
-            const res = await fetch(`${SCRIPT_URL}?action=getManagerData`);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return await res.json();
-        } catch(e) { log('⚠️ فشل التحميل: '+e.message); return null; }
-    }
+    function updateMap(teams, meters) { markersLayer.clearLayers(); polygonLayer.clearLayers(); for (let t of teams) if (t.polygonCoords?.length>2) { const latlngs = t.polygonCoords.map(p=>[p.lat,p.lng]); L.polygon(latlngs, { color:'#2c3e50', weight:2, fillColor:'#3498db', fillOpacity:0.1 }).addTo(polygonLayer); } for (let m of meters) { const icon = createBalloonIcon(m); L.marker([m.lat,m.lng], { icon:icon }).addTo(markersLayer).bindPopup(buildPopupContent(m)); } }
+    function updateStats(teams, meters) { const total=meters.length, completed=meters.filter(m=>m.status==='completed').length; document.getElementById('statsCards').innerHTML = `<div class="card"><h3>${total}</h3><p>إجمالي</p></div><div class="card"><h3 style="color:#2ecc71">${completed}</h3><p>تم</p></div><div class="card"><h3 style="color:#e67e22">${total-completed}</h3><p>متبقي</p></div><div class="card"><h3>${teams.length}</h3><p>الفرق</p></div>`; }
+    function updateTeamsTable(teams, meters) { const tbody = document.querySelector('#teamsTable tbody'); tbody.innerHTML = ''; const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1); for (let team of teams) { const teamMeters = meters.filter(m => m.teamId === team.id); const completed = teamMeters.filter(m => m.status === 'completed').length; const link = `${baseUrl}team.html?token=${team.token}`; let expiryHtml = ''; if (team.tokenExpiry) { const expiryDate = new Date(team.tokenExpiry); const valid = expiryDate > new Date(); expiryHtml = `<span style="background:${valid?'#2ecc71':'#e74c3c'}; color:white; padding:2px 8px; border-radius:20px; font-size:11px;">${valid?'صالحة حتى':'منتهية'} ${expiryDate.toLocaleString()}</span>`; } const row = tbody.insertRow(); row.insertCell(0).innerText = team.name; row.insertCell(1).innerText = teamMeters.length; row.insertCell(2).innerHTML = `<span class="completed">${completed}</span>`; row.insertCell(3).innerHTML = `<span class="pending">${teamMeters.length-completed}</span>`; row.insertCell(4).innerHTML = `<a href="${link}" target="_blank" class="team-link">🔗 رابط الفريق</a> <span class="copy-btn" onclick="navigator.clipboard.writeText('${link}'); alert('تم نسخ الرابط')">📋 نسخ</span>`; row.insertCell(5).innerHTML = expiryHtml; } }
+    async function refreshData() { const data = await loadFromGoogleSheets(); if (data?.teams && data?.meters) { updateMap(data.teams, data.meters); updateStats(data.teams, data.meters); updateTeamsTable(data.teams, data.meters); } else log('⚠️ لا توجد بيانات'); }
+    async function uploadAndProcess() { const dataFile = document.getElementById('dataFile').files[0], kmlFile = document.getElementById('kmlFile').files[0], swap = document.getElementById('swapCoords').checked; if (!dataFile || !kmlFile) { alert('اختر الملفين'); return; } document.getElementById('uploadMsg').innerHTML = '⏳ جاري...'; try { const meters = await parseDataFile(dataFile); const polygons = await parseKMLFile(kmlFile, swap); if (!meters.length || !polygons.length) throw new Error('بيانات ناقصة'); const { teams, meters: assigned } = assignMetersToTeams(meters, polygons); const saved = await saveToGoogleSheets(teams, assigned); if (saved) { document.getElementById('uploadMsg').innerHTML = '✅ تم الحفظ'; refreshData(); } else document.getElementById('uploadMsg').innerHTML = '⚠️ فشل الحفظ'; } catch(err) { document.getElementById('uploadMsg').innerHTML = `❌ ${err.message}`; log(err.message); } }
+    async function exportToExcel() { const data = await loadFromGoogleSheets(); if (!data?.meters) { alert('لا توجد بيانات'); return; } const rows = data.meters.map(m => { let base = { 'رقم العداد': m.meterId, 'خط العرض': m.lat, 'خط الطول': m.lng, 'الإجراء': m.action, 'الحالة': m.status==='completed'?'تم':'قيد', 'وقت الإنجاز': m.completedAt||'', 'الفرقة': data.teams.find(t=>t.id===m.teamId)?.name||'' }; if (m.extra) Object.assign(base, m.extra); return base; }); const ws = XLSX.utils.json_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'تقرير'); XLSX.writeFile(wb, `report_${new Date().toISOString().slice(0,19)}.xlsx`); }
+    async function refreshAllTokens() { if (!confirm('سيتم تجديد الروابط لمدة 24 ساعة جديدة. هل تريد المتابعة؟')) return; try { const res = await fetch(`${SCRIPT_URL}?action=refreshAllTokens`); const result = await res.json(); if (result.success) { alert(result.message); refreshData(); } else alert('فشل التجديد'); } catch(err) { alert('خطأ في الاتصال'); } }
     
-    async function appendMeters() {
-        const appendFile = document.getElementById('appendFile').files[0];
-        if (!appendFile) { alert('اختر ملف البيانات الجديد'); return; }
-        try {
-            const newMeters = await parseDataFile(appendFile);
-            if (newMeters.length === 0) throw new Error('لا توجد عدادات صالحة');
-            const currentData = await loadFromGoogleSheets();
-            if (!currentData || !currentData.meters) throw new Error('لا توجد بيانات حالية، قم برفع الملف الأساسي أولاً');
-            const existingIds = new Set(currentData.meters.map(m => m.meterId));
-            const metersToAdd = newMeters.filter(m => !existingIds.has(m.meterId));
-            if (metersToAdd.length === 0) { alert('جميع العدادات الجديدة موجودة بالفعل'); return; }
-            const allMeters = [...currentData.meters, ...metersToAdd];
-            const polygons = currentData.teams.map(t => ({ name: t.name, coords: t.polygonCoords }));
-            if (polygons.length === 0) throw new Error('لا توجد مناطق محددة مسبقاً');
-            const { teams, meters: reassignedMeters } = assignMetersToTeams(allMeters, polygons);
-            const saved = await saveToGoogleSheets(teams, reassignedMeters);
-            if (saved) {
-                alert(`تمت إضافة ${metersToAdd.length} عداد جديد وإعادة توزيع جميع العدادات`);
-                refreshData();
-            } else alert('فشل حفظ البيانات بعد الإضافة');
-        } catch(err) { alert('خطأ: '+err.message); log(err.message); }
-    }
-    
-    function updateMap(teams, meters) {
-        markersLayer.clearLayers(); polygonLayer.clearLayers();
-        for (let t of teams) {
-            if (t.polygonCoords?.length>2) {
-                const latlngs = t.polygonCoords.map(p=>[p.lat,p.lng]);
-                L.polygon(latlngs, { color:'#2c3e50', weight:2, fillColor:'#3498db', fillOpacity:0.1 }).addTo(polygonLayer);
-            }
-        }
-        for (let m of meters) {
-            const icon = createBalloonIcon(m);
-            const marker = L.marker([m.lat,m.lng], { icon:icon }).addTo(markersLayer);
-            marker.bindPopup(buildPopupContent(m));
-        }
-    }
-    
-    function updateStats(teams, meters) {
-        const total=meters.length, completed=meters.filter(m=>m.status==='completed').length;
-        document.getElementById('statsCards').innerHTML = `<div class="card"><h3>${total}</h3><p>إجمالي</p></div><div class="card"><h3 style="color:#2ecc71">${completed}</h3><p>تم</p></div><div class="card"><h3 style="color:#e67e22">${total-completed}</h3><p>متبقي</p></div><div class="card"><h3>${teams.length}</h3><p>الفرق</p></div>`;
-    }
-    
-    function updateTeamsTable(teams, meters) {
-        const tbody = document.querySelector('#teamsTable tbody');
-        tbody.innerHTML = '';
-        const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
-        for (let team of teams) {
-            const teamMeters = meters.filter(m => m.teamId === team.id);
-            const completed = teamMeters.filter(m => m.status === 'completed').length;
-            const link = `${baseUrl}team.html?token=${team.token}`;
-            let expiryHtml = '';
-            if (team.tokenExpiry) {
-                const expiryDate = new Date(team.tokenExpiry);
-                const valid = expiryDate > new Date();
-                expiryHtml = `<span style="background:${valid?'#2ecc71':'#e74c3c'}; color:white; padding:2px 8px; border-radius:20px; font-size:11px;">${valid?'صالحة حتى':'منتهية'} ${expiryDate.toLocaleString()}</span>`;
-            }
-            const row = tbody.insertRow();
-            row.insertCell(0).innerText = team.name;
-            row.insertCell(1).innerText = teamMeters.length;
-            row.insertCell(2).innerHTML = `<span class="completed">${completed}</span>`;
-            row.insertCell(3).innerHTML = `<span class="pending">${teamMeters.length-completed}</span>`;
-            row.insertCell(4).innerHTML = `<a href="${link}" target="_blank" class="team-link">🔗 رابط الفريق</a> <span class="copy-btn" onclick="navigator.clipboard.writeText('${link}'); alert('تم نسخ الرابط')">📋 نسخ</span>`;
-            row.insertCell(5).innerHTML = expiryHtml;
-        }
-    }
-    
-    async function refreshData() {
-        const data = await loadFromGoogleSheets();
-        if (data?.teams && data?.meters) {
-            updateMap(data.teams, data.meters);
-            updateStats(data.teams, data.meters);
-            updateTeamsTable(data.teams, data.meters);
-        } else log('⚠️ لا توجد بيانات لعرضها');
-    }
-    
-    async function uploadAndProcess() {
-        const dataFile = document.getElementById('dataFile').files[0];
-        const kmlFile = document.getElementById('kmlFile').files[0];
-        const swap = document.getElementById('swapCoords').checked;
-        if (!dataFile || !kmlFile) { alert('اختر الملفين'); return; }
-        document.getElementById('uploadMsg').innerHTML = '⏳ جاري...';
-        try {
-            const meters = await parseDataFile(dataFile);
-            const polygons = await parseKMLFile(kmlFile, swap);
-            if (!meters.length) throw new Error('لا توجد عدادات');
-            if (!polygons.length) throw new Error('لا توجد مضلعات');
-            const { teams, meters: assigned } = assignMetersToTeams(meters, polygons);
-            const saved = await saveToGoogleSheets(teams, assigned);
-            if (saved) {
-                document.getElementById('uploadMsg').innerHTML = '✅ تم الحفظ في Google Sheets';
-                refreshData();
-            } else document.getElementById('uploadMsg').innerHTML = '⚠️ فشل الحفظ';
-        } catch(err) { document.getElementById('uploadMsg').innerHTML = `❌ ${err.message}`; log(err.message); }
-    }
-    
-    async function exportToExcel() {
-        const data = await loadFromGoogleSheets();
-        if (!data?.meters) { alert('لا توجد بيانات'); return; }
-        const rows = data.meters.map(m => {
-            let base = { 'رقم العداد': m.meterId, 'خط العرض': m.lat, 'خط الطول': m.lng, 'الإجراء الأساسي': { lock:'قفل', unlock:'فتح', sticker:'ملصق' }[m.action]||m.action, 'الحالة': m.status==='completed'?'تم':'قيد', 'وقت الإنجاز': m.completedAt||'', 'الفرقة': data.teams.find(t=>t.id===m.teamId)?.name||'' };
-            if (m.extra) Object.assign(base, m.extra);
-            return base;
-        });
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'تقرير');
-        XLSX.writeFile(wb, `report_${new Date().toISOString().slice(0,19)}.xlsx`);
-    }
-    
-    async function refreshAllTokens() {
-        if (!confirm('سيتم تجديد روابط جميع الفرق لمدة 24 ساعة جديدة. هل تريد المتابعة؟')) return;
-        try {
-            const res = await fetch(`${SCRIPT_URL}?action=refreshAllTokens`);
-            const result = await res.json();
-            if (result.success) { alert(result.message); refreshData(); }
-            else alert('فشل التجديد');
-        } catch(err) { alert('خطأ في الاتصال'); }
-    }
-    
-    initMap();
-    refreshData();
-    setInterval(refreshData, 10000);
+    initMap(); refreshData(); setInterval(refreshData, 10000);
 </script>
 </body>
 </html>
