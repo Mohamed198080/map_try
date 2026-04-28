@@ -3,17 +3,87 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>خريطة الفريق - مع موقعي الحالي</title>
+    <title>خريطة الفريق - إحصائيات تفصيلية</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body { margin:0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:#1e272e; }
-        .header { background:#006266; color:white; padding:15px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; }
-        .stats { background:#3c6382; padding:8px 15px; border-radius:30px; font-size:0.9rem; }
-        .map-container { height: calc(100vh - 80px); width:100%; position: relative; }
-        .info-panel { position:fixed; bottom:20px; left:20px; background:rgba(0,0,0,0.7); color:white; padding:8px 15px; border-radius:8px; z-index:1000; font-size:12px; pointer-events:none; }
-        button { background:#0984e3; border:none; color:white; padding:5px 12px; border-radius:20px; cursor:pointer; margin-top:5px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #1e272e; }
         
+        /* رأس الصفحة مع الإحصائيات */
+        .stats-header {
+            background: #006266;
+            color: white;
+            padding: 10px 15px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+        .team-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        .stats-cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            background: #0a3d3d;
+            padding: 8px 15px;
+            justify-content: space-around;
+        }
+        .stat-card {
+            background: rgba(255,255,255,0.15);
+            border-radius: 20px;
+            padding: 4px 12px;
+            text-align: center;
+            min-width: 80px;
+        }
+        .stat-card .number {
+            font-size: 1.4rem;
+            font-weight: bold;
+            line-height: 1.2;
+        }
+        .stat-card .label {
+            font-size: 0.7rem;
+            opacity: 0.9;
+        }
+        .stat-card.lock { background: #e74c3c; }
+        .stat-card.unlock { background: #2ecc71; }
+        .stat-card.sticker { background: #f39c12; }
+        .stat-card.completed { background: #27ae60; }
+        .stat-card.pending { background: #e67e22; }
+        .stat-card.total { background: #3498db; }
+        
+        .map-container {
+            height: calc(100vh - 160px);
+            width: 100%;
+            position: relative;
+        }
+        .info-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 8px;
+            z-index: 1000;
+            font-size: 12px;
+            pointer-events: none;
+        }
+        button {
+            background: #0984e3;
+            border: none;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+        
+        /* أيقونة البالونة */
         .balloon-marker {
             background: transparent;
             width: 36px;
@@ -55,6 +125,7 @@
             border-radius: 50%;
         }
         
+        /* التحكم بالطبقات */
         .layer-control {
             position: absolute;
             top: 10px;
@@ -80,6 +151,7 @@
         }
         .layer-control button.active { background: #3498db; }
         
+        /* زر الموقع الحالي */
         .my-location-btn {
             position: absolute;
             bottom: 20px;
@@ -99,9 +171,7 @@
             align-items: center;
             gap: 5px;
         }
-        .my-location-btn:hover {
-            background-color: #2980b9;
-        }
+        .my-location-btn:hover { background-color: #2980b9; }
         
         .current-location-marker {
             background: #4285F4;
@@ -116,7 +186,6 @@
             width: 40px;
             height: 40px;
             background: rgba(66, 133, 244, 0.3);
-            position: relative;
             animation: pulse 1.5s infinite;
         }
         @keyframes pulse {
@@ -126,9 +195,12 @@
     </style>
 </head>
 <body>
-<div class="header">
-    <h2>📍 فريق: <span id="teamName">...</span></h2>
-    <div class="stats" id="statsRemaining">المهام المتبقية: --</div>
+<div class="stats-header">
+    <div class="team-title">📍 فريق: <span id="teamName">...</span></div>
+    <div style="font-size:0.8rem;">🕒 تحديث تلقائي</div>
+</div>
+<div class="stats-cards" id="statsContainer">
+    <!-- سيتم ملء الإحصائيات بواسطة JavaScript -->
 </div>
 <div class="map-container" id="teamMap">
     <div class="layer-control" id="layerControl">
@@ -138,7 +210,7 @@
     </div>
     <button class="my-location-btn" id="myLocationBtn">📍 موقعي الحالي</button>
 </div>
-<div class="info-panel">🧭 يمكنك تبديل خلفية الخريطة وعرض موقعك | اضغط على عداد ثم "تم الإنجاز"</div>
+<div class="info-panel">🧭 أرقام العدادات على البالونات | اضغط على عداد ثم "تم الإنجاز"</div>
 
 <script>
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzH03lCR9eNuGFqSp4dGhk1hrN6iLSRb-pRtdqrsy9BTuWVhy_wiKNn1jpB1WAfByF8AA/exec';
@@ -147,6 +219,7 @@
     let currentLocationMarker = null;
     let currentLocationCircle = null;
     
+    // تعريف طبقات الخريطة
     const tileLayers = {
         street: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OSM & CartoDB' }),
         satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri' }),
@@ -163,6 +236,7 @@
         });
     }
     
+    // عرض الموقع الحالي
     function showMyLocation() {
         if (!navigator.geolocation) {
             alert("المتصفح لا يدعم تحديد الموقع الجغرافي");
@@ -215,6 +289,7 @@
         document.getElementById('myLocationBtn').addEventListener('click', showMyLocation);
     }
     
+    // إنشاء أيقونة بالونة ملونة حسب الإجراء
     function createBalloonIcon(meter) {
         let bgColor = '#95a5a6';
         if (meter.action === 'lock') bgColor = '#e74c3c';
@@ -224,6 +299,7 @@
         return L.divIcon({ className: 'balloon-marker-container', html: html, iconSize: [36,36], iconAnchor: [18,32], popupAnchor: [0,-32] });
     }
     
+    // محتوى النافذة المنبثقة عند الضغط على العداد
     function buildPopupContent(meter) {
         let actionText = { lock:'قفل', unlock:'فتح', sticker:'وضع ملصق' }[meter.action] || 'غير معروف';
         let extraHtml = '';
@@ -237,6 +313,7 @@
         return `<div style="text-align:center; min-width:180px;"><strong>🚦 العداد: ${meter.meterId}</strong><br>🛠️ الإجراء: ${actionText}<br>${extraHtml}<button id="complete_${meter.id}" style="background:#27ae60;">✅ تم الإنجاز</button><br><button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')" style="background:#2980b9; margin-top:5px;">🧭 التنقل</button></div>`;
     }
     
+    // تحميل بيانات الفريق من Google Sheets
     async function loadTeamData() {
         const token = new URLSearchParams(location.search).get('token');
         if (!token) { document.getElementById('teamName').innerText='رابط غير صالح'; return null; }
@@ -247,31 +324,55 @@
             const data = await res.json();
             const team = data.teams.find(t => t.token === token);
             if (!team) { document.getElementById('teamName').innerText='فريق غير موجود'; return null; }
+            // التحقق من صلاحية الرابط
             if (team.tokenExpiry && new Date(team.tokenExpiry) <= new Date()) {
                 document.getElementById('teamName').innerHTML='⚠️ انتهت صلاحية الرابط';
-                document.getElementById('statsRemaining').innerHTML='يرجى التواصل مع المدير';
+                document.getElementById('statsContainer').innerHTML = '<div class="stat-card" style="background:#e74c3c;">الرابط منتهي، يرجى التواصل مع المدير</div>';
                 return null;
             }
             document.getElementById('teamName').innerText = team.name;
-            const pending = data.meters.filter(m => m.teamId === team.id && m.status === 'pending');
-            document.getElementById('statsRemaining').innerText = `📋 المتبقية: ${pending.length}`;
-            return { team, pendingMeters: pending };
-        } catch(e) { document.getElementById('teamName').innerText='خطأ في الاتصال'; return null; }
+            const teamMeters = data.meters.filter(m => m.teamId === team.id);
+            const pendingMeters = teamMeters.filter(m => m.status === 'pending');
+            const completedMeters = teamMeters.filter(m => m.status === 'completed');
+            // إحصائيات حسب الإجراء
+            const lockCount = pendingMeters.filter(m => m.action === 'lock').length;
+            const unlockCount = pendingMeters.filter(m => m.action === 'unlock').length;
+            const stickerCount = pendingMeters.filter(m => m.action === 'sticker').length;
+            const unknownCount = pendingMeters.filter(m => !['lock','unlock','sticker'].includes(m.action)).length;
+            // تحديث بطاقات الإحصائيات
+            document.getElementById('statsContainer').innerHTML = `
+                <div class="stat-card total"><div class="number">${teamMeters.length}</div><div class="label">📊 إجمالي عداداتك</div></div>
+                <div class="stat-card completed"><div class="number">${completedMeters.length}</div><div class="label">✅ تم إنجازها</div></div>
+                <div class="stat-card pending"><div class="number">${pendingMeters.length}</div><div class="label">⏳ متبقية</div></div>
+                <div class="stat-card lock"><div class="number">${lockCount}</div><div class="label">🔒 قفل</div></div>
+                <div class="stat-card unlock"><div class="number">${unlockCount}</div><div class="label">🔓 فتح</div></div>
+                <div class="stat-card sticker"><div class="number">${stickerCount}</div><div class="label">🏷️ ملصق</div></div>
+                ${unknownCount > 0 ? `<div class="stat-card" style="background:#95a5a6;"><div class="number">${unknownCount}</div><div class="label">❓ أخرى</div></div>` : ''}
+            `;
+            return { team, pendingMeters, allMeters: teamMeters };
+        } catch(e) { 
+            document.getElementById('teamName').innerText='خطأ في الاتصال';
+            document.getElementById('statsContainer').innerHTML = '<div class="stat-card">فشل تحميل البيانات</div>';
+            return null;
+        }
     }
     
+    // تحديث الخريطة
     async function refreshMap() {
         const result = await loadTeamData();
         if (!result) return;
         const { team, pendingMeters } = result;
         markersLayer.clearLayers();
-        if (team.polygonCoords?.length>2) {
+        // رسم حدود الفريق
+        if (team.polygonCoords && team.polygonCoords.length > 2) {
             const latlngs = team.polygonCoords.map(p=>[p.lat,p.lng]);
             L.polygon(latlngs, { color:'#f1c40f', weight:3, fillColor:'#f39c12', fillOpacity:0.2 }).addTo(markersLayer)
-                .bindPopup(`<b>${team.name}</b><br>نطاقك`);
+                .bindPopup(`<b>${team.name}</b><br>نطاق مسؤوليتك`);
         }
+        // رسم العدادات المعلقة فقط
         for (let m of pendingMeters) {
             const icon = createBalloonIcon(m);
-            const marker = L.marker([m.lat,m.lng], { icon:icon }).addTo(markersLayer);
+            const marker = L.marker([m.lat, m.lng], { icon: icon }).addTo(markersLayer);
             marker.bindPopup(buildPopupContent(m));
             marker.on('popupopen', () => {
                 const btn = document.getElementById(`complete_${m.id}`);
@@ -280,16 +381,22 @@
         }
     }
     
+    // إتمام العداد
     async function completeMeter(meterId) {
-        if (!confirm('إتمام المهمة؟')) return;
+        if (!confirm('إتمام المهمة على هذا العداد؟ سيتم حذفه من خريطتك.')) return;
         try {
             const res = await fetch(`${SCRIPT_URL}?action=completeMeter&meterId=${meterId}&teamToken=${currentTeamToken}`);
             const result = await res.json();
-            if (result.success) { alert('✅ تم'); refreshMap(); }
-            else alert('❌ فشل: '+ (result.error||''));
+            if (result.success) {
+                alert('✅ تم تسجيل الإنجاز بنجاح');
+                refreshMap(); // تحديث الخريطة والإحصائيات
+            } else {
+                alert('❌ فشل الإنجاز: '+ (result.error||'غير معروف'));
+            }
         } catch(e) { alert('خطأ في الاتصال'); }
     }
     
+    // بدء التطبيق
     initMap();
     refreshMap();
     setInterval(refreshMap, 8000);
