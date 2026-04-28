@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>خريطة الفريق - طبقات متعددة</title>
+    <title>خريطة الفريق - مع موقعي الحالي</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
@@ -14,7 +14,6 @@
         .info-panel { position:fixed; bottom:20px; left:20px; background:rgba(0,0,0,0.7); color:white; padding:8px 15px; border-radius:8px; z-index:1000; font-size:12px; pointer-events:none; }
         button { background:#0984e3; border:none; color:white; padding:5px 12px; border-radius:20px; cursor:pointer; margin-top:5px; }
         
-        /* أيقونة البالونة */
         .balloon-marker {
             background: transparent;
             width: 36px;
@@ -80,6 +79,50 @@
             font-size: 12px;
         }
         .layer-control button.active { background: #3498db; }
+        
+        .my-location-btn {
+            position: absolute;
+            bottom: 20px;
+            right: 10px;
+            background: #fff;
+            padding: 8px 12px;
+            border-radius: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 1000;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            border: none;
+            background-color: #3498db;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .my-location-btn:hover {
+            background-color: #2980b9;
+        }
+        
+        .current-location-marker {
+            background: #4285F4;
+            border: 2px solid white;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            box-shadow: 0 0 8px rgba(0,0,0,0.3);
+        }
+        .current-location-pulse {
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            background: rgba(66, 133, 244, 0.3);
+            position: relative;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.5); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
     </style>
 </head>
 <body>
@@ -93,13 +136,16 @@
         <button data-layer="satellite">🛰️ قمر صناعي</button>
         <button data-layer="terrain">⛰️ تضاريس</button>
     </div>
+    <button class="my-location-btn" id="myLocationBtn">📍 موقعي الحالي</button>
 </div>
-<div class="info-panel">🧭 يمكنك تبديل خلفية الخريطة | اضغط على عداد ثم "تم الإنجاز"</div>
+<div class="info-panel">🧭 يمكنك تبديل خلفية الخريطة وعرض موقعك | اضغط على عداد ثم "تم الإنجاز"</div>
 
 <script>
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzH03lCR9eNuGFqSp4dGhk1hrN6iLSRb-pRtdqrsy9BTuWVhy_wiKNn1jpB1WAfByF8AA/exec';
     let map, markersLayer, currentTileLayer = null;
     let currentTeamToken = null;
+    let currentLocationMarker = null;
+    let currentLocationCircle = null;
     
     const tileLayers = {
         street: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OSM & CartoDB' }),
@@ -117,6 +163,47 @@
         });
     }
     
+    function showMyLocation() {
+        if (!navigator.geolocation) {
+            alert("المتصفح لا يدعم تحديد الموقع الجغرافي");
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                if (currentLocationMarker) map.removeLayer(currentLocationMarker);
+                if (currentLocationCircle) map.removeLayer(currentLocationCircle);
+                const customIcon = L.divIcon({
+                    className: 'current-location-marker',
+                    iconSize: [16, 16],
+                    popupAnchor: [0, -8]
+                });
+                currentLocationMarker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+                currentLocationMarker.bindPopup("📍 أنت هنا").openPopup();
+                currentLocationCircle = L.circle([lat, lng], {
+                    radius: 30,
+                    color: '#4285F4',
+                    fillColor: '#4285F4',
+                    fillOpacity: 0.2,
+                    weight: 1
+                }).addTo(map);
+                map.setView([lat, lng], 15);
+            },
+            function(error) {
+                let msg = "";
+                switch(error.code) {
+                    case error.PERMISSION_DENIED: msg = "تم رفض الوصول إلى الموقع"; break;
+                    case error.POSITION_UNAVAILABLE: msg = "معلومات الموقع غير متوفرة"; break;
+                    case error.TIMEOUT: msg = "انتهى وقت محاولة تحديد الموقع"; break;
+                    default: msg = "خطأ غير معروف";
+                }
+                alert(msg);
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    }
+    
     function initMap() {
         map = L.map('teamMap').setView([27.545, 41.712], 12);
         currentTileLayer = tileLayers.street;
@@ -125,6 +212,7 @@
         document.querySelectorAll('.layer-control button').forEach(btn => {
             btn.addEventListener('click', () => switchLayer(btn.dataset.layer));
         });
+        document.getElementById('myLocationBtn').addEventListener('click', showMyLocation);
     }
     
     function createBalloonIcon(meter) {
