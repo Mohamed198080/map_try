@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>مدير النظام - خرائط متعددة الطبقات</title>
+    <title>مدير النظام - مع موقعي الحالي</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -105,12 +105,58 @@
         .layer-control button:hover {
             background: #1abc9c;
         }
+        
+        /* زر موقعي الحالي */
+        .my-location-btn {
+            position: absolute;
+            bottom: 20px;
+            right: 10px;
+            background: #fff;
+            padding: 8px 12px;
+            border-radius: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 1000;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            border: none;
+            background-color: #3498db;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .my-location-btn:hover {
+            background-color: #2980b9;
+        }
+        
+        /* علامة الموقع الحالي */
+        .current-location-marker {
+            background: #4285F4;
+            border: 2px solid white;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            box-shadow: 0 0 8px rgba(0,0,0,0.3);
+        }
+        .current-location-pulse {
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            background: rgba(66, 133, 244, 0.3);
+            position: relative;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.5); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <h1>📊 مدير التوزيع الجغرافي (خرائط متعددة)</h1>
+        <h1>📊 مدير التوزيع الجغرافي (مع موقعي الحالي)</h1>
         <div>
             <button onclick="refreshData()">🔄 تحديث</button>
             <button onclick="exportToExcel()" style="background:#27ae60;">📎 Excel</button>
@@ -140,6 +186,7 @@
             <button data-layer="satellite">🛰️ قمر صناعي</button>
             <button data-layer="terrain">⛰️ تضاريس</button>
         </div>
+        <button class="my-location-btn" id="myLocationBtn">📍 موقعي الحالي</button>
     </div>
     <div class="teams-table">
         <h3>📋 الفرق والروابط (تنتهي صلاحيتها بعد 24 ساعة)</h3>
@@ -149,14 +196,16 @@
         </table>
     </div>
     <div class="log-area" id="logArea">📋 سجل العمليات...</div>
-    <div class="footer">✅ يمكنك تبديل الخريطة: عادي، قمر صناعي، تضاريس | تظهر العدادات بشكل بالونة ملونة</div>
+    <div class="footer">✅ يمكنك تبديل الخريطة وعرض موقعك الحالي | تظهر العدادات بشكل بالونة ملونة</div>
 </div>
 
 <script>
     // رابط Google Apps Script
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzH03lCR9eNuGFqSp4dGhk1hrN6iLSRb-pRtdqrsy9BTuWVhy_wiKNn1jpB1WAfByF8AA/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw4E7ZFs81Pz_xHBjRJ5B76b0ADRJBMcif_GV9rOCNzNgXxtpC7_GD_2ggsid2cn45T8A/exec';
     let map, markersLayer, polygonLayer;
     let currentTileLayer = null;
+    let currentLocationMarker = null;
+    let currentLocationCircle = null;
     
     // تعريف طبقات الخريطة
     const tileLayers = {
@@ -181,6 +230,53 @@
         });
     }
     
+    // دالة عرض الموقع الحالي
+    function showMyLocation() {
+        if (!navigator.geolocation) {
+            alert("المتصفح لا يدعم تحديد الموقع الجغرافي");
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            function(position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                // إزالة العلامة السابقة إن وجدت
+                if (currentLocationMarker) map.removeLayer(currentLocationMarker);
+                if (currentLocationCircle) map.removeLayer(currentLocationCircle);
+                // إضافة علامة موقعي الحالي (دائرة زرقاء متحركة)
+                const customIcon = L.divIcon({
+                    className: 'current-location-marker',
+                    iconSize: [16, 16],
+                    popupAnchor: [0, -8]
+                });
+                currentLocationMarker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+                currentLocationMarker.bindPopup("📍 أنت هنا").openPopup();
+                // إضافة دائرة نصف قطرها 30 متر للدقة مع تأثير نبض
+                currentLocationCircle = L.circle([lat, lng], {
+                    radius: 30,
+                    color: '#4285F4',
+                    fillColor: '#4285F4',
+                    fillOpacity: 0.2,
+                    weight: 1,
+                    className: 'current-location-pulse'
+                }).addTo(map);
+                // تحريك الخريطة إلى الموقع
+                map.setView([lat, lng], 15);
+            },
+            function(error) {
+                let msg = "";
+                switch(error.code) {
+                    case error.PERMISSION_DENIED: msg = "تم رفض الوصول إلى الموقع"; break;
+                    case error.POSITION_UNAVAILABLE: msg = "معلومات الموقع غير متوفرة"; break;
+                    case error.TIMEOUT: msg = "انتهى وقت محاولة تحديد الموقع"; break;
+                    default: msg = "خطأ غير معروف";
+                }
+                alert(msg);
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    }
+    
     function initMap() {
         map = L.map('managerMap').setView([27.545, 41.712], 12);
         currentTileLayer = tileLayers.street;
@@ -190,6 +286,7 @@
         document.querySelectorAll('.layer-control button').forEach(btn => {
             btn.addEventListener('click', () => switchLayer(btn.dataset.layer));
         });
+        document.getElementById('myLocationBtn').addEventListener('click', showMyLocation);
     }
     
     function log(msg) {
