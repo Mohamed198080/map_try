@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>مدير النظام - أرشفة وبحث</title>
+    <title>مدير النظام - أرشفة ثابتة وبحث</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -52,7 +52,7 @@
 <body>
 <div class="container">
     <div class="header">
-        <h1>📊 مدير التوزيع الجغرافي (أرشفة وبحث)</h1>
+        <h1>📊 مدير التوزيع الجغرافي (أرشفة ثابتة وبحث)</h1>
         <div>
             <button onclick="refreshData()">🔄 تحديث</button>
             <button onclick="exportToExcel()" style="background:#27ae60;">📎 Excel</button>
@@ -62,7 +62,7 @@
     
     <!-- قسم رفع الملفات -->
     <div class="upload-area">
-        <h3>📂 رفع ملف جديد (سيتم أرشفة العدادات الحالية ثم توزيع الجديدة فقط)</h3>
+        <h3>📂 رفع ملف جديد (سيتم أرشفة العدادات الحالية في ورقة واحدة ثم توزيع الجديدة فقط)</h3>
         <div class="upload-form">
             <div class="form-group"><label>ملف البيانات الجديد (عدادات):</label><input type="file" id="dataFile" accept=".csv,.xlsx"></div>
             <div class="form-group"><label>ملف KML:</label><input type="file" id="kmlFile" accept=".kml"></div>
@@ -74,7 +74,7 @@
     
     <!-- قسم البحث برقم العداد -->
     <div class="search-area">
-        <h3>🔍 البحث عن تاريخ عداد</h3>
+        <h3>🔍 البحث عن تاريخ عداد (في الرئيسي والأرشيف)</h3>
         <div class="search-form">
             <div class="form-group"><label>رقم العداد:</label><input type="text" id="searchMeterId" placeholder="أدخل رقم العداد"></div>
             <button onclick="searchMeterHistory()">🔍 بحث</button>
@@ -107,11 +107,11 @@
     </div>
     
     <div class="log-area" id="logArea">📋 سجل العمليات...</div>
-    <div class="footer">✅ زر التحميل يقوم بأرشفة العدادات الحالية ثم توزيع العدادات الجديدة فقط</div>
+    <div class="footer">✅ زر التحميل يقوم بأرشفة العدادات الحالية في ورقة "archive" ثم توزيع العدادات الجديدة فقط</div>
 </div>
 
 <script>
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz7UB-hP1jKt3cK2ve7_KDEM4nzzCIO4XEe1YWkptbdgROjqp1hitaasKS9CSnYPw0Z7Q/exec';
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzFuBeaNewX5dpiqAXeBykAeNaEL7BMfESf87m9NumCvdeRbD4WfV8WAUyoxkURTmPtFQ/exec';
     let map, markersLayer, polygonLayer;
     let currentTileLayer = null;
     let currentLocationMarker = null, currentLocationCircle = null;
@@ -291,7 +291,18 @@
     function isPointInPolygon(point, polygon) { let x=point.lng, y=point.lat, inside=false; for (let i=0,j=polygon.length-1; i<polygon.length; j=i++) { let xi=polygon[i].lng, yi=polygon[i].lat, xj=polygon[j].lng, yj=polygon[j].lat; let intersect = ((yi>y)!=(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi); if (intersect) inside=!inside; } return inside; }
     function assignMetersToTeams(meters, polygons) { let teams = polygons.map((p,i) => ({ id: crypto.randomUUID(), token: Math.random().toString(36).substring(2,12), name: p.name || `الفرقة ${i+1}`, polygonCoords: p.coords, meterIds: [] })); let assigned=0; for (let m of meters) { let found=false; for (let t of teams) { if (isPointInPolygon({lat:m.lat, lng:m.lng}, t.polygonCoords)) { t.meterIds.push(m.id); m.teamId=t.id; assigned++; found=true; break; } } if (!found) { let def = teams.find(t=>t.name==='خارج المناطق'); if (!def) { def = { id:crypto.randomUUID(), token:Math.random().toString(36).substring(2,12), name:'خارج المناطق', polygonCoords:[], meterIds:[] }; teams.push(def); } def.meterIds.push(m.id); m.teamId = def.id; } } teams = teams.filter(t=>t.meterIds.length>0); log(`✅ توزيع: ${assigned} داخل المضلعات، ${meters.length-assigned} خارجها`); return { teams, meters }; }
     
-    async function saveToGoogleSheets(teams, meters) { const payload = new URLSearchParams({ action:'uploadNewData', metersJson:JSON.stringify(meters), teamsJson:JSON.stringify(teams) }).toString(); try { const res = await fetch(SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:payload }); const result = await res.json(); return result.success; } catch(e) { log('❌ خطأ في الحفظ: '+e.message); return false; } }
+    async function saveToGoogleSheets(teams, meters) {
+        const payload = new URLSearchParams({
+            action: 'uploadNewData',
+            metersJson: JSON.stringify(meters),
+            teamsJson: JSON.stringify(teams)
+        }).toString();
+        try {
+            const res = await fetch(SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:payload });
+            const result = await res.json();
+            return result.success;
+        } catch(e) { log('❌ خطأ في الحفظ: '+e.message); return false; }
+    }
     async function loadFromGoogleSheets() { try { const res = await fetch(`${SCRIPT_URL}?action=getManagerData`); if (!res.ok) throw new Error(`HTTP ${res.status}`); return await res.json(); } catch(e) { log('⚠️ فشل التحميل: '+e.message); return null; } }
     
     function createBalloonIcon(meter) { const bgColor = (meter.status === 'completed') ? '#7f8c8d' : getColorFromAction(meter.action, meter.status); const html = `<div class="balloon-marker"><div class="pin" style="background-color: ${bgColor};"><div class="number">${meter.meterId.length > 4 ? meter.meterId.slice(0,4) : meter.meterId}</div></div></div>`; return L.divIcon({ className: 'balloon-marker-container', html: html, iconSize: [36,36], iconAnchor: [18,32], popupAnchor: [0,-32] }); }
@@ -323,9 +334,8 @@
     }
     
     async function exportToExcel() { const data = await loadFromGoogleSheets(); if (!data?.meters) { alert('لا توجد بيانات'); return; } const rows = data.meters.map(m => { let base = { 'رقم العداد': m.meterId, 'خط العرض': m.lat, 'خط الطول': m.lng, 'الإجراء': m.action, 'الحالة': m.status==='completed'?'تم':'قيد', 'وقت الإنجاز': m.completedAt||'', 'الفرقة': data.teams.find(t=>t.id===m.teamId)?.name||'' }; if (m.extra) Object.assign(base, m.extra); return base; }); const ws = XLSX.utils.json_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'تقرير'); XLSX.writeFile(wb, `report_${new Date().toISOString().slice(0,19)}.xlsx`); }
-    async function refreshAllTokens() { if (!confirm('سيتم تجديد الروابط لمدة 24 ساعة جديدة. هل تريد المتابعة？')) return; try { const res = await fetch(`${SCRIPT_URL}?action=refreshAllTokens`); const result = await res.json(); if (result.success) { alert(result.message); refreshData(); } else alert('فشل التجديد'); } catch(err) { alert('خطأ في الاتصال'); } }
+    async function refreshAllTokens() { if (!confirm('سيتم تجديد الروابط لمدة 24 ساعة جديدة. هل تريد المتابعة؟')) return; try { const res = await fetch(`${SCRIPT_URL}?action=refreshAllTokens`); const result = await res.json(); if (result.success) { alert(result.message); refreshData(); } else alert('فشل التجديد'); } catch(err) { alert('خطأ في الاتصال'); } }
     
-    // البحث عن تاريخ عداد
     async function searchMeterHistory() {
         const meterId = document.getElementById('searchMeterId').value.trim();
         if (!meterId) { alert('الرجاء إدخال رقم العداد'); return; }
@@ -346,7 +356,7 @@
                 return;
             }
             document.getElementById('searchResult').innerHTML = `<div style="color:green;">✅ تم العثور على ${history.length} سجل للعداد ${meterId}</div>`;
-            let tableHtml = `<h4>📋 تاريخ العداد ${meterId}</h4><table><thead><tr><th>الورقة</th><th>خط العرض</th><th>خط الطول</th><th>الإجراء</th><th>الحالة</th><th>وقت الإنجاز</th><th>الفريق</th><th>بيانات إضافية</th></tr></thead><tbody>`;
+            let tableHtml = `<h4>📋 تاريخ العداد ${meterId}</h4><table><thead><tr><th>الورقة</th><th>خط العرض</th><th>خط الطول</th><th>الإجراء</th><th>الحالة</th><th>وقت الإنجاز</th><th>الفريق</th><th>بيانات إضافية</th><th>تاريخ الأرشفة</th></thead><tbody>`;
             let lastValidCoords = null;
             for (let rec of history) {
                 let actionText = rec.action || '—';
@@ -356,7 +366,8 @@
                 if (rec.extra && Object.keys(rec.extra).length) {
                     extraText = Object.entries(rec.extra).map(([k,v]) => `${k}:${v}`).join(', ');
                 }
-                tableHtml += `<tr><td>${rec.sheet}</td><td>${rec.lat || '—'}</td><td>${rec.lng || '—'}</td><td>${actionText}</td><td>${statusText}</td><td>${rec.completedAt ? new Date(rec.completedAt).toLocaleString() : '—'}</td><td>${teamId}</td><td>${extraText}</td></tr>`;
+                let archiveDate = rec.archiveTimestamp ? new Date(rec.archiveTimestamp).toLocaleString() : '—';
+                tableHtml += `<tr><td>${rec.sheet}</td><td>${rec.lat || '—'}</td><td>${rec.lng || '—'}</td><td>${actionText}</td><td>${statusText}</td><td>${rec.completedAt ? new Date(rec.completedAt).toLocaleString() : '—'}</td><td>${teamId}</td><td>${extraText}</td><td>${archiveDate}</td></tr>`;
                 if (rec.lat && rec.lng && !isNaN(rec.lat) && !isNaN(rec.lng)) {
                     lastValidCoords = { lat: rec.lat, lng: rec.lng };
                 }
@@ -365,7 +376,6 @@
             historyDiv.innerHTML = tableHtml;
             historyDiv.style.display = 'block';
             
-            // عرض الخريطة مع موقع العداد (آخر إحداثيات صالحة)
             if (lastValidCoords) {
                 searchMapDiv.style.display = 'block';
                 if (searchMap) searchMap.remove();
