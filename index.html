@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>مدير النظام - أرشفة ثابتة وبحث</title>
+    <title>مدير النظام - إدارة المخالفات</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
@@ -13,7 +13,7 @@
         .container { max-width: 1400px; margin: 0 auto; }
         .header { background: #2c3e50; color: white; padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
         .upload-area, .search-area { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
-        .upload-form, .search-form { display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; }
+        .upload-form { display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; }
         .form-group { display: flex; flex-direction: column; gap: 5px; }
         button { background: #3498db; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
         .stats-cards { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -45,14 +45,12 @@
         .current-location-marker { background: #4285F4; border: 2px solid white; border-radius: 50%; width: 16px; height: 16px; box-shadow: 0 0 8px rgba(0,0,0,0.3); }
         .current-location-pulse { border-radius: 50%; width: 40px; height: 40px; background: rgba(66, 133, 244, 0.3); animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
-        
-        .search-result-marker { background: #9b59b6; border: 2px solid white; border-radius: 50%; width: 20px; height: 20px; }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <h1>📊 مدير التوزيع الجغرافي (أرشفة ثابتة وبحث)</h1>
+        <h1>📊 مدير التوزيع الجغرافي (روابط ثابتة + مخالفات)</h1>
         <div>
             <button onclick="refreshData()">🔄 تحديث</button>
             <button onclick="exportToExcel()" style="background:#27ae60;">📎 Excel</button>
@@ -60,21 +58,31 @@
         </div>
     </div>
     
-    <!-- قسم رفع الملفات -->
+    <!-- قسم استبدال كامل -->
     <div class="upload-area">
-        <h3>📂 رفع ملف جديد (سيتم أرشفة العدادات الحالية في ورقة واحدة ثم توزيع الجديدة فقط)</h3>
+        <h3>🔄 استبدال كامل (أرشفة القديم + توزيع جديد)</h3>
         <div class="upload-form">
-            <div class="form-group"><label>ملف البيانات الجديد (عدادات):</label><input type="file" id="dataFile" accept=".csv,.xlsx"></div>
-            <div class="form-group"><label>ملف KML:</label><input type="file" id="kmlFile" accept=".kml"></div>
+            <div class="form-group"><label>ملف CSV/Excel (عدادات جديدة):</label><input type="file" id="fullCsvFile" accept=".csv,.xlsx"></div>
+            <div class="form-group"><label>ملف KML (مناطق جديدة):</label><input type="file" id="fullKmlFile" accept=".kml"></div>
             <div class="swap-check"><label>🔄 تبديل إحداثيات KML</label><input type="checkbox" id="swapCoords"></div>
-            <button onclick="uploadAndProcess()">🚀 تحميل وتوزيع (أرشفة القديم + توزيع الجديد)</button>
+            <button onclick="fullReplace()">🚀 استبدال كامل (أرشفة)</button>
         </div>
-        <div id="uploadMsg" style="margin-top:10px;"></div>
+        <div id="fullMsg" style="margin-top:10px;"></div>
     </div>
     
-    <!-- قسم البحث برقم العداد -->
+    <!-- قسم إضافة عدادات جديدة مع توزيع تلقائي -->
+    <div class="upload-area">
+        <h3>➕ إضافة عدادات جديدة (سيتم توزيعها على الفرق الحالية تلقائياً)</h3>
+        <div class="upload-form">
+            <div class="form-group"><label>ملف CSV/Excel (عدادات جديدة):</label><input type="file" id="appendCsvFile" accept=".csv,.xlsx"></div>
+            <button onclick="appendOnly()">➕ إضافة وتوزيع</button>
+        </div>
+        <div id="appendMsg" style="margin-top:10px;"></div>
+    </div>
+    
+    <!-- قسم البحث -->
     <div class="search-area">
-        <h3>🔍 البحث عن تاريخ عداد (في الرئيسي والأرشيف)</h3>
+        <h3>🔍 البحث عن تاريخ عداد</h3>
         <div class="search-form">
             <div class="form-group"><label>رقم العداد:</label><input type="text" id="searchMeterId" placeholder="أدخل رقم العداد"></div>
             <button onclick="searchMeterHistory()">🔍 بحث</button>
@@ -84,10 +92,8 @@
         <div class="map-container" id="searchMap" style="height:300px; display:none;"></div>
     </div>
     
-    <!-- إحصائيات -->
+    <!-- الخريطة والإحصائيات -->
     <div class="stats-cards" id="statsCards"></div>
-    
-    <!-- الخريطة الرئيسية -->
     <div class="map-container" id="managerMap">
         <div class="layer-control" id="layerControl">
             <button data-layer="street" class="active">🗺️ عادي</button>
@@ -97,32 +103,26 @@
         <button class="my-location-btn" id="myLocationBtn">📍 موقعي الحالي</button>
     </div>
     
-    <!-- جدول الفرق -->
     <div class="teams-table">
-        <h3>📋 الفرق والروابط (تنتهي صلاحيتها بعد 24 ساعة)</h3>
-        <table id="teamsTable">
-            <thead>汽<th>الفرقة</th><th>العدادات</th><th>تم</th><th>متبقي</th><th>الرابط</th><th>الصلاحية</th> </thead>
-            <tbody></tbody>
-        </table>
+        <h3>📋 الفرق والروابط (روابط ثابتة لا تنتهي)</h3>
+        <table id="teamsTable"><thead>汽<th>الفرقة</th><th>العدادات</th><th>تم</th><th>متبقي</th><th>الرابط</th></thead><tbody></tbody></table>
     </div>
     
     <div class="log-area" id="logArea">📋 سجل العمليات...</div>
-    <div class="footer">✅ زر التحميل يقوم بأرشفة العدادات الحالية في ورقة "archive" ثم توزيع العدادات الجديدة فقط</div>
+    <div class="footer">✅ الروابط ثابتة ولا تنتهي | يمكن للفني تسجيل رقم المخالفة عند إتمام العداد</div>
 </div>
 
 <script>
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzFuBeaNewX5dpiqAXeBykAeNaEL7BMfESf87m9NumCvdeRbD4WfV8WAUyoxkURTmPtFQ/exec';
-    let map, markersLayer, polygonLayer;
-    let currentTileLayer = null;
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwJzn3X9m2_VaQ2bdSl8n3PTqwfrn8Px47z_ikvL5c4fR2F8r5IHUCZtv0Oeu8q_CF8hg/exec';
+    let map, markersLayer, polygonLayer, currentTileLayer = null;
     let currentLocationMarker = null, currentLocationCircle = null;
     let searchMap = null, searchMarker = null;
     
     function getColorFromAction(action, status) {
         if (status === 'completed') return '#7f8c8d';
         let hash = 0;
-        for (let i = 0; i < action.length; i++) { hash = ((hash << 5) - hash) + action.charCodeAt(i); hash |= 0; }
-        const hue = Math.abs(hash % 360);
-        return `hsl(${hue}, 70%, 55%)`;
+        for (let i=0; i<action.length; i++) hash = ((hash<<5)-hash)+action.charCodeAt(i);
+        return `hsl(${Math.abs(hash%360)}, 70%, 55%)`;
     }
     
     const tileLayers = {
@@ -136,7 +136,7 @@
     
     function log(msg) { const logDiv = document.getElementById('logArea'); logDiv.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`; logDiv.scrollTop = logDiv.scrollHeight; console.log(msg); }
     
-    async function parseDataFile(file) {
+    async function parseCSVorExcel(file) {
         return new Promise((resolve, reject) => {
             const ext = file.name.split('.').pop().toLowerCase();
             const reader = new FileReader();
@@ -145,7 +145,7 @@
                 if (ext === 'csv') {
                     const text = e.target.result;
                     const lines = text.trim().split(/\r?\n/);
-                    if (lines.length < 2) return reject(new Error('ملف CSV فارغ'));
+                    if (lines.length < 2) return reject(new Error('ملف فارغ'));
                     const firstLine = lines[0];
                     const hasHeaders = !firstLine.match(/^[\d\.\,\"\s\-]+$/);
                     let headers = [];
@@ -170,14 +170,13 @@
                     for (let i=startIdx; i<lines.length; i++) {
                         const line = lines[i].trim();
                         if (!line) continue;
-                        let parts = [];
-                        let inQuote = false, current = '';
+                        let parts = [], inQuote=false, cur='';
                         for (let ch of line) {
                             if (ch === '"') inQuote = !inQuote;
-                            else if (ch === ',' && !inQuote) { parts.push(current.trim()); current = ''; }
-                            else current += ch;
+                            else if (ch === ',' && !inQuote) { parts.push(cur.trim()); cur=''; }
+                            else cur += ch;
                         }
-                        parts.push(current.trim());
+                        parts.push(cur.trim());
                         if (parts.length < 3) continue;
                         const meterId = parts[colIdx.id]?.replace(/["']/g, '');
                         const lat = parseFloat(parts[colIdx.lat]?.replace(/["']/g, ''));
@@ -198,6 +197,7 @@
                                 lat, lng,
                                 action: actionRaw || 'unknown',
                                 status: 'pending', completedAt: null, teamId: null,
+                                violationNumber: '',
                                 extra: extra
                             });
                         }
@@ -239,12 +239,12 @@
                                 meterId, lat, lng,
                                 action: actionRaw || 'unknown',
                                 status: 'pending', completedAt: null, teamId: null,
+                                violationNumber: '',
                                 extra: extra
                             });
                         }
                     }
                 } else reject(new Error('نوع ملف غير مدعوم'));
-                log(`✅ تم قراءة ${meters.length} عداد من الملف الجديد`);
                 resolve(meters);
             };
             reader.onerror = () => reject(new Error('فشل قراءة الملف'));
@@ -280,7 +280,6 @@
                     if (coords.length) polygons.push({ name, coords });
                 }
                 if (polygons.length === 0) reject(new Error('لا توجد مضلعات صالحة'));
-                log(`✅ تم قراءة ${polygons.length} مضلع من ملف KML`);
                 resolve(polygons);
             };
             reader.onerror = () => reject(new Error('فشل قراءة KML'));
@@ -289,63 +288,89 @@
     }
     function parseKMLCoords(coordStr, swap) { return coordStr.trim().split(/\s+/).map(p => { let [lng, lat] = p.split(',').map(Number); if (swap) [lat, lng] = [lng, lat]; return { lat, lng }; }).filter(p => !isNaN(p.lat) && !isNaN(p.lng)); }
     function isPointInPolygon(point, polygon) { let x=point.lng, y=point.lat, inside=false; for (let i=0,j=polygon.length-1; i<polygon.length; j=i++) { let xi=polygon[i].lng, yi=polygon[i].lat, xj=polygon[j].lng, yj=polygon[j].lat; let intersect = ((yi>y)!=(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi); if (intersect) inside=!inside; } return inside; }
-    function assignMetersToTeams(meters, polygons) { let teams = polygons.map((p,i) => ({ id: crypto.randomUUID(), token: Math.random().toString(36).substring(2,12), name: p.name || `الفرقة ${i+1}`, polygonCoords: p.coords, meterIds: [] })); let assigned=0; for (let m of meters) { let found=false; for (let t of teams) { if (isPointInPolygon({lat:m.lat, lng:m.lng}, t.polygonCoords)) { t.meterIds.push(m.id); m.teamId=t.id; assigned++; found=true; break; } } if (!found) { let def = teams.find(t=>t.name==='خارج المناطق'); if (!def) { def = { id:crypto.randomUUID(), token:Math.random().toString(36).substring(2,12), name:'خارج المناطق', polygonCoords:[], meterIds:[] }; teams.push(def); } def.meterIds.push(m.id); m.teamId = def.id; } } teams = teams.filter(t=>t.meterIds.length>0); log(`✅ توزيع: ${assigned} داخل المضلعات، ${meters.length-assigned} خارجها`); return { teams, meters }; }
-    
-    async function saveToGoogleSheets(teams, meters) {
-        const payload = new URLSearchParams({
-            action: 'uploadNewData',
-            metersJson: JSON.stringify(meters),
-            teamsJson: JSON.stringify(teams)
-        }).toString();
-        try {
-            const res = await fetch(SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:payload });
-            const result = await res.json();
-            return result.success;
-        } catch(e) { log('❌ خطأ في الحفظ: '+e.message); return false; }
-    }
+    function assignMetersToTeams(meters, polygons) { let teams = polygons.map((p,i) => ({ id: crypto.randomUUID(), token: Math.random().toString(36).substring(2,12), name: p.name || `الفرقة ${i+1}`, polygonCoords: p.coords, meterIds: [] })); let assigned=0; for (let m of meters) { m.violationNumber = ''; let found=false; for (let t of teams) { if (isPointInPolygon({lat:m.lat, lng:m.lng}, t.polygonCoords)) { t.meterIds.push(m.id); m.teamId=t.id; assigned++; found=true; break; } } if (!found) { let def = teams.find(t=>t.name==='خارج المناطق'); if (!def) { def = { id:crypto.randomUUID(), token:Math.random().toString(36).substring(2,12), name:'خارج المناطق', polygonCoords:[], meterIds:[] }; teams.push(def); } def.meterIds.push(m.id); m.teamId = def.id; } } teams = teams.filter(t=>t.meterIds.length>0); return { teams, meters }; }
     async function loadFromGoogleSheets() { try { const res = await fetch(`${SCRIPT_URL}?action=getManagerData`); if (!res.ok) throw new Error(`HTTP ${res.status}`); return await res.json(); } catch(e) { log('⚠️ فشل التحميل: '+e.message); return null; } }
     
     function createBalloonIcon(meter) { const bgColor = (meter.status === 'completed') ? '#7f8c8d' : getColorFromAction(meter.action, meter.status); const html = `<div class="balloon-marker"><div class="pin" style="background-color: ${bgColor};"><div class="number">${meter.meterId.length > 4 ? meter.meterId.slice(0,4) : meter.meterId}</div></div></div>`; return L.divIcon({ className: 'balloon-marker-container', html: html, iconSize: [36,36], iconAnchor: [18,32], popupAnchor: [0,-32] }); }
-    function buildPopupContent(meter) { let actionText = meter.action || 'غير معروف'; let extraHtml = ''; if (meter.extra && Object.keys(meter.extra).length) { extraHtml = '<hr><div style="text-align:right; font-size:11px;">📌 بيانات إضافية:<br>'; for (let [k,v] of Object.entries(meter.extra)) if(v) extraHtml += `<span style="font-weight:bold;">${k}:</span> ${v}<br>`; extraHtml += '</div>'; } return `<div style="text-align:center; min-width:200px;"><b>🚦 العداد: ${meter.meterId}</b><br>📋 الإجراء: ${actionText}<br>📍 الحالة: ${meter.status==='completed'?'✅ تم':'⏳ قيد'}<br>${extraHtml}${meter.completedAt ? '🕒 وقت الإنجاز: '+new Date(meter.completedAt).toLocaleString()+'<br>' : ''}<button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')" style="margin-top:5px;">🧭 التنقل</button></div>`; }
-    
+    function buildPopupContent(meter) { let actionText = meter.action || 'غير معروف'; let extraHtml = ''; if (meter.extra && Object.keys(meter.extra).length) { extraHtml = '<hr><div style="text-align:right; font-size:11px;">📌 بيانات إضافية:<br>'; for (let [k,v] of Object.entries(meter.extra)) if(v) extraHtml += `<span style="font-weight:bold;">${k}:</span> ${v}<br>`; extraHtml += '</div>'; } return `<div style="text-align:center; min-width:200px;"><b>🚦 العداد: ${meter.meterId}</b><br>📋 الإجراء: ${actionText}<br>📍 الحالة: ${meter.status==='completed'?'✅ تم':'⏳ قيد'}<br>${extraHtml}${meter.completedAt ? '🕒 وقت الإنجاز: '+new Date(meter.completedAt).toLocaleString()+'<br>' : ''}${meter.violationNumber ? '📝 رقم المخالفة: '+meter.violationNumber+'<br>' : ''}<button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')" style="margin-top:5px;">🧭 التنقل</button></div>`; }
     function updateMap(teams, meters) { markersLayer.clearLayers(); polygonLayer.clearLayers(); for (let t of teams) if (t.polygonCoords?.length>2) { const latlngs = t.polygonCoords.map(p=>[p.lat,p.lng]); L.polygon(latlngs, { color:'#2c3e50', weight:2, fillColor:'#3498db', fillOpacity:0.1 }).addTo(polygonLayer); } for (let m of meters) { const icon = createBalloonIcon(m); L.marker([m.lat,m.lng], { icon:icon }).addTo(markersLayer).bindPopup(buildPopupContent(m)); } }
     function updateStats(teams, meters) { const total=meters.length, completed=meters.filter(m=>m.status==='completed').length; document.getElementById('statsCards').innerHTML = `<div class="card"><h3>${total}</h3><p>إجمالي</p></div><div class="card"><h3 style="color:#2ecc71">${completed}</h3><p>تم</p></div><div class="card"><h3 style="color:#e67e22">${total-completed}</h3><p>متبقي</p></div><div class="card"><h3>${teams.length}</h3><p>الفرق</p></div>`; }
-    function updateTeamsTable(teams, meters) { const tbody = document.querySelector('#teamsTable tbody'); tbody.innerHTML = ''; const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1); for (let team of teams) { const teamMeters = meters.filter(m => m.teamId === team.id); const completed = teamMeters.filter(m => m.status === 'completed').length; const link = `${baseUrl}team.html?token=${team.token}`; let expiryHtml = ''; if (team.tokenExpiry) { const expiryDate = new Date(team.tokenExpiry); const valid = expiryDate > new Date(); expiryHtml = `<span style="background:${valid?'#2ecc71':'#e74c3c'}; color:white; padding:2px 8px; border-radius:20px; font-size:11px;">${valid?'صالحة حتى':'منتهية'} ${expiryDate.toLocaleString()}</span>`; } const row = tbody.insertRow(); row.insertCell(0).innerText = team.name; row.insertCell(1).innerText = teamMeters.length; row.insertCell(2).innerHTML = `<span class="completed">${completed}</span>`; row.insertCell(3).innerHTML = `<span class="pending">${teamMeters.length-completed}</span>`; row.insertCell(4).innerHTML = `<a href="${link}" target="_blank" class="team-link">🔗 رابط الفريق</a> <span class="copy-btn" onclick="navigator.clipboard.writeText('${link}'); alert('تم نسخ الرابط')">📋 نسخ</span>`; row.insertCell(5).innerHTML = expiryHtml; } }
+    function updateTeamsTable(teams, meters) { const tbody = document.querySelector('#teamsTable tbody'); tbody.innerHTML = ''; const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1); for (let team of teams) { const teamMeters = meters.filter(m => m.teamId === team.id); const completed = teamMeters.filter(m => m.status === 'completed').length; const link = `${baseUrl}team.html?token=${team.token}`; const row = tbody.insertRow(); row.insertCell(0).innerText = team.name; row.insertCell(1).innerText = teamMeters.length; row.insertCell(2).innerHTML = `<span class="completed">${completed}</span>`; row.insertCell(3).innerHTML = `<span class="pending">${teamMeters.length-completed}</span>`; row.insertCell(4).innerHTML = `<a href="${link}" target="_blank" class="team-link">🔗 رابط الفريق</a> <span class="copy-btn" onclick="navigator.clipboard.writeText('${link}'); alert('تم نسخ الرابط')">📋 نسخ</span>`; } }
     async function refreshData() { const data = await loadFromGoogleSheets(); if (data?.teams && data?.meters) { updateMap(data.teams, data.meters); updateStats(data.teams, data.meters); updateTeamsTable(data.teams, data.meters); } else log('⚠️ لا توجد بيانات'); }
     
-    async function uploadAndProcess() {
-        const dataFile = document.getElementById('dataFile').files[0];
-        const kmlFile = document.getElementById('kmlFile').files[0];
+    async function fullReplace() {
+        const csvFile = document.getElementById('fullCsvFile').files[0];
+        const kmlFile = document.getElementById('fullKmlFile').files[0];
         const swap = document.getElementById('swapCoords').checked;
-        if (!dataFile || !kmlFile) { alert('اختر الملفين'); return; }
-        document.getElementById('uploadMsg').innerHTML = '⏳ جاري أرشفة القديم وتوزيع الجديد...';
+        if (!csvFile || !kmlFile) { alert('اختر ملف CSV و KML'); return; }
+        const msgDiv = document.getElementById('fullMsg');
+        msgDiv.innerHTML = '⏳ جاري أرشفة القديم وتوزيع الجديد...';
         try {
-            const newMeters = await parseDataFile(dataFile);
+            const newMeters = await parseCSVorExcel(csvFile);
             const polygons = await parseKMLFile(kmlFile, swap);
-            if (!newMeters.length) throw new Error('لا توجد عدادات صالحة في الملف الجديد');
-            if (!polygons.length) throw new Error('لا توجد مضلعات صالحة');
+            if (!newMeters.length) throw new Error('لا توجد عدادات صالحة');
+            if (!polygons.length) throw new Error('لا توجد مضلعات');
             const { teams, meters: assigned } = assignMetersToTeams(newMeters, polygons);
-            const saved = await saveToGoogleSheets(teams, assigned);
-            if (saved) {
-                document.getElementById('uploadMsg').innerHTML = '✅ تم أرشفة القديم وحفظ الجديد وتوزيعه';
-                refreshData();
-            } else document.getElementById('uploadMsg').innerHTML = '⚠️ فشل الحفظ';
-        } catch(err) { document.getElementById('uploadMsg').innerHTML = `❌ ${err.message}`; log(err.message); }
+            const payload = new URLSearchParams({ action: 'uploadNewData', metersJson: JSON.stringify(assigned), teamsJson: JSON.stringify(teams) }).toString();
+            const res = await fetch(SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:payload });
+            const result = await res.json();
+            if (result.success) { msgDiv.innerHTML = '✅ تم الاستبدال والأرشفة بنجاح'; refreshData(); }
+            else msgDiv.innerHTML = '❌ فشل الاستبدال';
+        } catch(err) { msgDiv.innerHTML = `❌ ${err.message}`; log(err.message); }
     }
     
-    async function exportToExcel() { const data = await loadFromGoogleSheets(); if (!data?.meters) { alert('لا توجد بيانات'); return; } const rows = data.meters.map(m => { let base = { 'رقم العداد': m.meterId, 'خط العرض': m.lat, 'خط الطول': m.lng, 'الإجراء': m.action, 'الحالة': m.status==='completed'?'تم':'قيد', 'وقت الإنجاز': m.completedAt||'', 'الفرقة': data.teams.find(t=>t.id===m.teamId)?.name||'' }; if (m.extra) Object.assign(base, m.extra); return base; }); const ws = XLSX.utils.json_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'تقرير'); XLSX.writeFile(wb, `report_${new Date().toISOString().slice(0,19)}.xlsx`); }
-    async function refreshAllTokens() { if (!confirm('سيتم تجديد الروابط لمدة 24 ساعة جديدة. هل تريد المتابعة؟')) return; try { const res = await fetch(`${SCRIPT_URL}?action=refreshAllTokens`); const result = await res.json(); if (result.success) { alert(result.message); refreshData(); } else alert('فشل التجديد'); } catch(err) { alert('خطأ في الاتصال'); } }
+    async function appendOnly() {
+        const csvFile = document.getElementById('appendCsvFile').files[0];
+        if (!csvFile) { alert('اختر ملف CSV'); return; }
+        const msgDiv = document.getElementById('appendMsg');
+        msgDiv.innerHTML = '⏳ جاري إضافة العدادات الجديدة وتوزيعها...';
+        try {
+            const newMeters = await parseCSVorExcel(csvFile);
+            if (!newMeters.length) throw new Error('لا توجد عدادات صالحة');
+            const payload = new URLSearchParams({ action: 'appendMeters', metersJson: JSON.stringify(newMeters) }).toString();
+            const res = await fetch(SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:payload });
+            const result = await res.json();
+            if (result.addedCount !== undefined) {
+                msgDiv.innerHTML = `✅ تمت إضافة وتوزيع ${result.addedCount} عداد جديد (تجنب المكرر)`;
+                refreshData();
+            } else msgDiv.innerHTML = '❌ فشل الإضافة';
+        } catch(err) { msgDiv.innerHTML = `❌ ${err.message}`; log(err.message); }
+    }
+    
+    async function exportToExcel() {
+        const data = await loadFromGoogleSheets();
+        if (!data?.meters) { alert('لا توجد بيانات'); return; }
+        const rows = data.meters.map(m => {
+            let base = { 'رقم العداد': m.meterId, 'خط العرض': m.lat, 'خط الطول': m.lng, 'الإجراء': m.action, 'الحالة': m.status==='completed'?'تم':'قيد', 'وقت الإنجاز': m.completedAt||'', 'رقم المخالفة': m.violationNumber||'', 'الفرقة': data.teams.find(t=>t.id===m.teamId)?.name||'' };
+            if (m.extra) Object.assign(base, m.extra);
+            return base;
+        });
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'تقرير');
+        XLSX.writeFile(wb, `report_${new Date().toISOString().slice(0,19)}.xlsx`);
+    }
+    
+    async function refreshAllTokens() {
+        if (!confirm('سيتم تجديد روابط الفرق. هل تريد المتابعة؟')) return;
+        try {
+            const res = await fetch(`${SCRIPT_URL}?action=refreshAllTokens`);
+            const result = await res.json();
+            if (result.success) { alert(result.message); refreshData(); }
+            else alert('فشل التجديد');
+        } catch(err) { alert('خطأ في الاتصال'); }
+    }
     
     async function searchMeterHistory() {
         const meterId = document.getElementById('searchMeterId').value.trim();
         if (!meterId) { alert('الرجاء إدخال رقم العداد'); return; }
-        const searchBtn = event.target;
-        searchBtn.innerText = 'جاري البحث...';
-        searchBtn.disabled = true;
+        const btn = event.target;
+        btn.innerText = 'جاري البحث...';
+        btn.disabled = true;
         try {
             const res = await fetch(`${SCRIPT_URL}?action=searchMeterHistory&meterId=${encodeURIComponent(meterId)}`);
             const data = await res.json();
-            if (data.error) { alert(data.error); return; }
+            if (data.error) throw new Error(data.error);
             const history = data.history || [];
             const historyDiv = document.getElementById('historyTable');
             const searchMapDiv = document.getElementById('searchMap');
@@ -355,50 +380,32 @@
                 searchMapDiv.style.display = 'none';
                 return;
             }
-            document.getElementById('searchResult').innerHTML = `<div style="color:green;">✅ تم العثور على ${history.length} سجل للعداد ${meterId}</div>`;
-            let tableHtml = `<h4>📋 تاريخ العداد ${meterId}</h4><table><thead><tr><th>الورقة</th><th>خط العرض</th><th>خط الطول</th><th>الإجراء</th><th>الحالة</th><th>وقت الإنجاز</th><th>الفريق</th><th>بيانات إضافية</th><th>تاريخ الأرشفة</th></thead><tbody>`;
-            let lastValidCoords = null;
+            document.getElementById('searchResult').innerHTML = `<div style="color:green;">✅ تم العثور على ${history.length} سجل</div>`;
+            let html = `<h4>📋 تاريخ العداد ${meterId}</h4><table><thead>汽<th>الورقة</th><th>خط العرض</th><th>خط الطول</th><th>الإجراء</th><th>الحالة</th><th>وقت الإنجاز</th><th>الفريق</th><th>رقم المخالفة</th><th>بيانات إضافية</th><th>تاريخ الأرشفة</th></thead><tbody>`;
+            let lastCoords = null;
             for (let rec of history) {
-                let actionText = rec.action || '—';
-                let statusText = rec.status === 'completed' ? 'تم' : (rec.status === 'pending' ? 'قيد الانتظار' : rec.status);
-                let teamId = rec.teamId || '—';
-                let extraText = '';
-                if (rec.extra && Object.keys(rec.extra).length) {
-                    extraText = Object.entries(rec.extra).map(([k,v]) => `${k}:${v}`).join(', ');
-                }
-                let archiveDate = rec.archiveTimestamp ? new Date(rec.archiveTimestamp).toLocaleString() : '—';
-                tableHtml += `<tr><td>${rec.sheet}</td><td>${rec.lat || '—'}</td><td>${rec.lng || '—'}</td><td>${actionText}</td><td>${statusText}</td><td>${rec.completedAt ? new Date(rec.completedAt).toLocaleString() : '—'}</td><td>${teamId}</td><td>${extraText}</td><td>${archiveDate}</td></tr>`;
-                if (rec.lat && rec.lng && !isNaN(rec.lat) && !isNaN(rec.lng)) {
-                    lastValidCoords = { lat: rec.lat, lng: rec.lng };
-                }
+                html += `<tr><td>${rec.sheet}</td><td>${rec.lat||'—'}</td><td>${rec.lng||'—'}</td><td>${rec.action||'—'}</td><td>${rec.status==='completed'?'تم':(rec.status==='pending'?'قيد':rec.status)}</td><td>${rec.completedAt?new Date(rec.completedAt).toLocaleString():'—'}</td><td>${rec.teamId||'—'}</td><td>${rec.violationNumber||'—'}</td><td>${Object.entries(rec.extra||{}).map(([k,v])=>`${k}:${v}`).join(', ')}</td><td>${rec.archiveTimestamp?new Date(rec.archiveTimestamp).toLocaleString():'—'}</td><tr>`;
+                if (rec.lat && rec.lng && !isNaN(rec.lat) && !isNaN(rec.lng)) lastCoords = { lat: rec.lat, lng: rec.lng };
             }
-            tableHtml += `</tbody></table>`;
-            historyDiv.innerHTML = tableHtml;
+            html += `</tbody></table>`;
+            historyDiv.innerHTML = html;
             historyDiv.style.display = 'block';
-            
-            if (lastValidCoords) {
+            if (lastCoords) {
                 searchMapDiv.style.display = 'block';
                 if (searchMap) searchMap.remove();
-                searchMap = L.map('searchMap').setView([lastValidCoords.lat, lastValidCoords.lng], 15);
+                searchMap = L.map('searchMap').setView([lastCoords.lat, lastCoords.lng], 15);
                 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OSM' }).addTo(searchMap);
                 if (searchMarker) searchMarker.remove();
-                searchMarker = L.marker([lastValidCoords.lat, lastValidCoords.lng]).addTo(searchMap)
-                    .bindPopup(`<b>العداد ${meterId}</b><br>آخر إحداثيات مسجلة`).openPopup();
-            } else {
-                searchMapDiv.style.display = 'none';
-            }
-        } catch(err) {
-            alert('خطأ في البحث: ' + err.message);
-        } finally {
-            searchBtn.innerText = '🔍 بحث';
-            searchBtn.disabled = false;
-        }
+                searchMarker = L.marker([lastCoords.lat, lastCoords.lng]).addTo(searchMap).bindPopup(`<b>العداد ${meterId}</b><br>آخر إحداثيات`).openPopup();
+            } else searchMapDiv.style.display = 'none';
+        } catch(err) { alert('خطأ في البحث: '+err.message); }
+        finally { btn.innerText = '🔍 بحث'; btn.disabled = false; }
     }
     
     initMap();
     refreshData();
     setInterval(refreshData, 10000);
-    window.searchMeterHistory = searchMeterHistory;
+    window.fullReplace = fullReplace; window.appendOnly = appendOnly; window.searchMeterHistory = searchMeterHistory;
 </script>
 </body>
 </html>
