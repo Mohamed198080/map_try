@@ -36,12 +36,14 @@
         .current-location-pulse { border-radius: 50%; width: 40px; height: 40px; background: rgba(66, 133, 244, 0.3); animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
         
-        .popup-content { text-align: center; min-width: 220px; }
-        .popup-content strong { font-size: 14px; }
-        .popup-content hr { margin: 8px 0; }
-        .popup-content input { width: 90%; padding: 6px; margin-top: 5px; border-radius: 8px; border: 1px solid #ccc; font-size: 12px; }
-        .popup-content button { background: #27ae60; margin-top: 8px; padding: 6px 12px; font-size: 12px; }
-        .popup-content .nav-btn { background: #2980b9; margin-top: 5px; }
+        /* تثبيت النافذة المنبثقة */
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+        }
+        .leaflet-popup-content {
+            min-width: 240px;
+            margin: 10px 12px;
+        }
     </style>
 </head>
 <body>
@@ -66,7 +68,9 @@
     let currentTeamToken = null;
     let currentLocationMarker = null, currentLocationCircle = null;
     let currentTeam = null;
-    let pendingMetersList = [];
+    let markersMap = new Map(); // لتخزين المراجع للعلامات
+    let isPopupOpen = false;    // لمنع التحديث أثناء فتح النافذة
+    let refreshTimer = null;
     
     function getColorFromAction(action) {
         let hash = 0;
@@ -111,6 +115,10 @@
         markersLayer = L.layerGroup().addTo(map); 
         document.querySelectorAll('.layer-control button').forEach(btn => btn.addEventListener('click', () => switchLayer(btn.dataset.layer))); 
         document.getElementById('myLocationBtn').addEventListener('click', showMyLocation); 
+        
+        // تتبع فتح وإغلاق popup
+        map.on('popupopen', () => { isPopupOpen = true; });
+        map.on('popupclose', () => { isPopupOpen = false; });
     }
     
     function createBalloonIcon(meter) { 
@@ -119,48 +127,95 @@
         return L.divIcon({ className: 'balloon-marker-container', html: html, iconSize: [36,36], iconAnchor: [18,32], popupAnchor: [0,-32] }); 
     }
     
-    // دالة إنشاء محتوى النافذة المنبثقة - مع أيدي فريدة للحقول
-    function buildPopupContent(meter, meterId) {
+    function buildPopupContent(meter) {
         let extraHtml = '';
         if (meter.extra && Object.keys(meter.extra).length) {
             extraHtml = '<hr><div style="text-align:right; font-size:11px;">📌 بيانات إضافية:<br>';
             for (let [k,v] of Object.entries(meter.extra)) if(v) extraHtml += `<span style="font-weight:bold;">${k}:</span> ${v}<br>`;
             extraHtml += '</div>';
         }
-        // استخدام معرف فريد للمدخلات والأزرار بناءً على meter.id
-        const inputId = `violation_${meter.id}`;
-        const btnId = `complete_${meter.id}`;
+        // استخدام ID ثابت للعداد مع تجنب التعارض
+        const inputId = `popup_violation_${meter.id}`;
+        const btnId = `popup_complete_${meter.id}`;
         
-        return `<div class="popup-content" id="popup_${meter.id}">
+        return `<div style="text-align:center;">
                     <strong>🚦 العداد: ${meter.meterId}</strong><br>
                     🛠️ الإجراء: ${meter.action}<br>
                     ${extraHtml}
                     <hr>
                     <label style="font-size:12px;">📝 رقم المخالفة (اختياري):</label><br>
-                    <input type="text" id="${inputId}" placeholder="أدخل رقم المخالفة" autocomplete="off">
+                    <input type="text" id="${inputId}" placeholder="أدخل رقم المخالفة" autocomplete="off" style="width:90%; padding:6px; border-radius:8px; border:1px solid #ccc; margin-top:5px;">
                     <br>
-                    <button id="${btnId}" style="background:#27ae60;">✅ تم الإنجاز</button>
+                    <button id="${btnId}" style="background:#27ae60; margin-top:8px; padding:6px 12px;">✅ تم الإنجاز</button>
                     <br>
-                    <button class="nav-btn" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')">🧭 التنقل</button>
+                    <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')" style="background:#2980b9; margin-top:5px; padding:6px 12px;">🧭 التنقل</button>
                 </div>`;
     }
     
-    // دالة ربط الأحداث بالأزرار - يتم استدعاؤها بعد فتح النافذة
-    function attachPopupEvents(meter) {
-        const btnId = `complete_${meter.id}`;
+    // ربط الأحداث بالزر بعد فتح النافذة
+    function attachPopupEvent(meter) {
+        const btnId = `popup_complete_${meter.id}`;
         const btn = document.getElementById(btnId);
         if (btn) {
-            // إزالة أي مستمعات سابقة لتجنب التكرار
+            // إزالة أي مستمع قديم
             const newBtn = btn.cloneNode(true);
             btn.parentNode.replaceChild(newBtn, btn);
             newBtn.onclick = (e) => {
                 e.stopPropagation();
-                const inputId = `violation_${meter.id}`;
-                const violationInput = document.getElementById(inputId);
-                const violationNumber = violationInput ? violationInput.value : '';
+                const inputId = `popup_violation_${meter.id}`;
+                const input = document.getElementById(inputId);
+                const violationNumber = input ? input.value : '';
                 completeMeter(meter.id, violationNumber);
             };
         }
+    }
+    
+    // تحديث العلامات فقط (بدون إعادة إنشاء كل شيء)
+    async function refreshMap() {
+        if (isPopupOpen) {
+            // إذا كانت نافذة مفتوحة، نؤجل التحديث
+            return;
+        }
+        
+        const result = await loadTeamData();
+        if (!result) return;
+        const { team, pendingMeters } = result;
+        
+        // إزالة العلامات التي لم تعد موجودة (مكتملة)
+        const currentMeterIds = new Set(pendingMeters.map(m => m.id));
+        for (let [id, marker] of markersMap.entries()) {
+            if (!currentMeterIds.has(id)) {
+                markersLayer.removeLayer(marker);
+                markersMap.delete(id);
+            }
+        }
+        
+        // إضافة أو تحديث العلامات الموجودة
+        for (let m of pendingMeters) {
+            let marker = markersMap.get(m.id);
+            if (!marker) {
+                const icon = createBalloonIcon(m);
+                marker = L.marker([m.lat, m.lng], { icon: icon }).addTo(markersLayer);
+                markersMap.set(m.id, marker);
+                // ربط popup
+                marker.bindPopup(buildPopupContent(m));
+                marker.on('popupopen', () => {
+                    setTimeout(() => attachPopupEvent(m), 50);
+                });
+            } else {
+                // تحديث موقع العلامة إذا تغير (نادر)
+                marker.setLatLng([m.lat, m.lng]);
+                // تحديث رمز العلامة
+                const newIcon = createBalloonIcon(m);
+                marker.setIcon(newIcon);
+                // تحديث محتوى popup (قد يتغير الحالة)
+                marker.unbindPopup();
+                marker.bindPopup(buildPopupContent(m));
+            }
+        }
+        
+        // تحديث الإحصائيات
+        updateStats(team, pendingMeters);
     }
     
     async function loadTeamData() {
@@ -177,9 +232,23 @@
             currentTeam = team;
             const teamMeters = data.meters.filter(m => m.teamId === team.id);
             const pendingMeters = teamMeters.filter(m => m.status === 'pending');
-            pendingMetersList = pendingMeters;
-            const completedCount = teamMeters.filter(m => m.status === 'completed').length;
+            return { team, pendingMeters };
+        } catch(e) { 
+            document.getElementById('teamName').innerText='خطأ في الاتصال'; 
+            console.error(e);
+            return null; 
+        }
+    }
+    
+    function updateStats(team, pendingMeters) {
+        // نحتاج إلى الإجمالي والمنجز
+        // لحساب الإجمالي نستدعي البيانات مرة أخرى أو نخزنها
+        // سنقوم بجلب الإحصائيات من loadTeamData ولكن لتبسيط نستخدم pending فقط مع إجمالي محفوظ
+        // الأفضل تخزين إجمالي عدد العدادت لهذا الفريق
+        fetch(`${SCRIPT_URL}?action=getManagerData`).then(res => res.json()).then(data => {
+            const teamMeters = data.meters.filter(m => m.teamId === team.id);
             const totalCount = teamMeters.length;
+            const completedCount = teamMeters.filter(m => m.status === 'completed').length;
             const actionStats = new Map();
             for (let m of pendingMeters) {
                 const act = m.action || 'غير معروف';
@@ -192,47 +261,7 @@
                 statsHtml += `<div class="stat-card" style="background:${getColorFromAction(act)};"><div class="number">${count}</div><div class="label">${act}</div></div>`;
             }
             document.getElementById('statsContainer').innerHTML = statsHtml;
-            return { team, pendingMeters };
-        } catch(e) { 
-            document.getElementById('teamName').innerText='خطأ في الاتصال'; 
-            console.error(e);
-            return null; 
-        }
-    }
-    
-    async function refreshMap() {
-        const result = await loadTeamData();
-        if (!result) return;
-        const { team, pendingMeters } = result;
-        markersLayer.clearLayers();
-        
-        // رسم منطقة الفريق
-        if (team.polygonCoords && team.polygonCoords.length > 2) {
-            const latlngs = team.polygonCoords.map(p=>[p.lat,p.lng]);
-            L.polygon(latlngs, { color:'#f1c40f', weight:3, fillColor:'#f39c12', fillOpacity:0.2 }).addTo(markersLayer)
-                .bindPopup(`<b>${team.name}</b><br>نطاقك`);
-        }
-        
-        // إضافة علامات للعدادات المعلقة فقط
-        for (let m of pendingMeters) {
-            const icon = createBalloonIcon(m);
-            const marker = L.marker([m.lat,m.lng], { icon:icon }).addTo(markersLayer);
-            // إنشاء محتوى النافذة
-            const popupContent = buildPopupContent(m);
-            marker.bindPopup(popupContent);
-            
-            // ربط الأحداث بعد فتح النافذة
-            marker.on('popupopen', () => {
-                // تأخير بسيط للتأكد من وجود العناصر في DOM
-                setTimeout(() => attachPopupEvents(m), 50);
-            });
-        }
-        
-        // تكبير الخريطة لتشمل جميع النقاط إذا وجدت
-        if (pendingMeters.length > 0) {
-            const bounds = L.latLngBounds(pendingMeters.map(m => [m.lat, m.lng]));
-            map.fitBounds(bounds);
-        }
+        }).catch(console.error);
     }
     
     async function completeMeter(meterId, violationNumber) {
@@ -243,7 +272,9 @@
             const result = await res.json();
             if (result.success) {
                 alert(`✅ تم تسجيل الإنجاز${result.violationNumber ? ' برقم مخالفة: ' + result.violationNumber : ''}`);
-                // تحديث الخريطة مباشرة
+                // إغلاق جميع النوافذ المفتوحة
+                map.closePopup();
+                // تحديث الخريطة فورًا
                 await refreshMap();
             } else {
                 alert('❌ فشل الإنجاز: '+ (result.error||''));
@@ -253,11 +284,33 @@
         }
     }
     
+    // بدء التحديث الدوري مع مراعاة عدم التحديث أثناء فتح النافذة
+    function startAutoRefresh() {
+        if (refreshTimer) clearInterval(refreshTimer);
+        refreshTimer = setInterval(() => {
+            if (!isPopupOpen) {
+                refreshMap();
+            }
+        }, 5000); // كل 5 ثوانٍ
+    }
+    
+    // رسم حدود الفريق إذا وجدت
+    async function drawTeamBoundary() {
+        const token = new URLSearchParams(location.search).get('token');
+        if (!token) return;
+        const data = await fetch(`${SCRIPT_URL}?action=getManagerData`).then(res => res.json());
+        const team = data.teams.find(t => t.token === token);
+        if (team && team.polygonCoords && team.polygonCoords.length > 2) {
+            const latlngs = team.polygonCoords.map(p => [p.lat, p.lng]);
+            L.polygon(latlngs, { color: '#f1c40f', weight: 3, fillColor: '#f39c12', fillOpacity: 0.2 }).addTo(map)
+                .bindPopup(`<b>${team.name}</b><br>نطاقك`);
+        }
+    }
+    
     // بدء التشغيل
     initMap();
-    refreshMap();
-    // تحديث تلقائي كل 8 ثواني
-    setInterval(refreshMap, 8000);
+    drawTeamBoundary();
+    refreshMap().then(() => startAutoRefresh());
 </script>
 </body>
 </html>
