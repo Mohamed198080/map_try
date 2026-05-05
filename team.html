@@ -35,6 +35,13 @@
         .current-location-marker { background: #4285F4; border: 2px solid white; border-radius: 50%; width: 16px; height: 16px; box-shadow: 0 0 8px rgba(0,0,0,0.3); }
         .current-location-pulse { border-radius: 50%; width: 40px; height: 40px; background: rgba(66, 133, 244, 0.3); animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+        
+        .popup-content { text-align: center; min-width: 220px; }
+        .popup-content strong { font-size: 14px; }
+        .popup-content hr { margin: 8px 0; }
+        .popup-content input { width: 90%; padding: 6px; margin-top: 5px; border-radius: 8px; border: 1px solid #ccc; font-size: 12px; }
+        .popup-content button { background: #27ae60; margin-top: 8px; padding: 6px 12px; font-size: 12px; }
+        .popup-content .nav-btn { background: #2980b9; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -58,6 +65,8 @@
     let map, markersLayer, currentTileLayer = null;
     let currentTeamToken = null;
     let currentLocationMarker = null, currentLocationCircle = null;
+    let currentTeam = null;
+    let pendingMetersList = [];
     
     function getColorFromAction(action) {
         let hash = 0;
@@ -71,31 +80,87 @@
         satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles Esri' }),
         terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenTopoMap' })
     };
-    function switchLayer(layerName) { if (currentTileLayer) map.removeLayer(currentTileLayer); currentTileLayer = tileLayers[layerName]; currentTileLayer.addTo(map); document.querySelectorAll('.layer-control button').forEach(btn => { if (btn.dataset.layer === layerName) btn.classList.add('active'); else btn.classList.remove('active'); }); }
-    function showMyLocation() { if (!navigator.geolocation) { alert("المتصفح لا يدعم تحديد الموقع"); return; } navigator.geolocation.getCurrentPosition(pos => { const lat=pos.coords.latitude, lng=pos.coords.longitude; if(currentLocationMarker) map.removeLayer(currentLocationMarker); if(currentLocationCircle) map.removeLayer(currentLocationCircle); const icon = L.divIcon({className:'current-location-marker', iconSize:[16,16], popupAnchor:[0,-8]}); currentLocationMarker = L.marker([lat,lng],{icon:icon}).addTo(map).bindPopup("📍 أنت هنا").openPopup(); currentLocationCircle = L.circle([lat,lng], {radius:30, color:'#4285F4', fillColor:'#4285F4', fillOpacity:0.2, weight:1}).addTo(map); map.setView([lat,lng],15); }, err => alert(err.message), {enableHighAccuracy:true, timeout:10000}); }
-    function initMap() { map = L.map('teamMap').setView([27.545,41.712],12); currentTileLayer = tileLayers.street; currentTileLayer.addTo(map); markersLayer = L.layerGroup().addTo(map); document.querySelectorAll('.layer-control button').forEach(btn => btn.addEventListener('click', () => switchLayer(btn.dataset.layer))); document.getElementById('myLocationBtn').addEventListener('click', showMyLocation); }
     
-    function createBalloonIcon(meter) { const bgColor = getColorFromAction(meter.action); const html = `<div class="balloon-marker"><div class="pin" style="background-color: ${bgColor};"><div class="number">${meter.meterId.length > 4 ? meter.meterId.slice(0,4) : meter.meterId}</div></div></div>`; return L.divIcon({ className: 'balloon-marker-container', html: html, iconSize: [36,36], iconAnchor: [18,32], popupAnchor: [0,-32] }); }
+    function switchLayer(layerName) { 
+        if (currentTileLayer) map.removeLayer(currentTileLayer); 
+        currentTileLayer = tileLayers[layerName]; 
+        currentTileLayer.addTo(map); 
+        document.querySelectorAll('.layer-control button').forEach(btn => { 
+            if (btn.dataset.layer === layerName) btn.classList.add('active'); 
+            else btn.classList.remove('active'); 
+        }); 
+    }
     
-    function buildPopupContent(meter) {
+    function showMyLocation() { 
+        if (!navigator.geolocation) { alert("المتصفح لا يدعم تحديد الموقع"); return; } 
+        navigator.geolocation.getCurrentPosition(pos => { 
+            const lat=pos.coords.latitude, lng=pos.coords.longitude; 
+            if(currentLocationMarker) map.removeLayer(currentLocationMarker); 
+            if(currentLocationCircle) map.removeLayer(currentLocationCircle); 
+            const icon = L.divIcon({className:'current-location-marker', iconSize:[16,16], popupAnchor:[0,-8]}); 
+            currentLocationMarker = L.marker([lat,lng],{icon:icon}).addTo(map).bindPopup("📍 أنت هنا").openPopup(); 
+            currentLocationCircle = L.circle([lat,lng], {radius:30, color:'#4285F4', fillColor:'#4285F4', fillOpacity:0.2, weight:1}).addTo(map); 
+            map.setView([lat,lng],15); 
+        }, err => alert(err.message), {enableHighAccuracy:true, timeout:10000}); 
+    }
+    
+    function initMap() { 
+        map = L.map('teamMap').setView([27.545,41.712],12); 
+        currentTileLayer = tileLayers.street; 
+        currentTileLayer.addTo(map); 
+        markersLayer = L.layerGroup().addTo(map); 
+        document.querySelectorAll('.layer-control button').forEach(btn => btn.addEventListener('click', () => switchLayer(btn.dataset.layer))); 
+        document.getElementById('myLocationBtn').addEventListener('click', showMyLocation); 
+    }
+    
+    function createBalloonIcon(meter) { 
+        const bgColor = meter.status === 'completed' ? '#7f8c8d' : getColorFromAction(meter.action); 
+        const html = `<div class="balloon-marker"><div class="pin" style="background-color: ${bgColor};"><div class="number">${meter.meterId.length > 4 ? meter.meterId.slice(0,4) : meter.meterId}</div></div></div>`; 
+        return L.divIcon({ className: 'balloon-marker-container', html: html, iconSize: [36,36], iconAnchor: [18,32], popupAnchor: [0,-32] }); 
+    }
+    
+    // دالة إنشاء محتوى النافذة المنبثقة - مع أيدي فريدة للحقول
+    function buildPopupContent(meter, meterId) {
         let extraHtml = '';
         if (meter.extra && Object.keys(meter.extra).length) {
             extraHtml = '<hr><div style="text-align:right; font-size:11px;">📌 بيانات إضافية:<br>';
             for (let [k,v] of Object.entries(meter.extra)) if(v) extraHtml += `<span style="font-weight:bold;">${k}:</span> ${v}<br>`;
             extraHtml += '</div>';
         }
-        return `<div style="text-align:center; min-width:220px;">
+        // استخدام معرف فريد للمدخلات والأزرار بناءً على meter.id
+        const inputId = `violation_${meter.id}`;
+        const btnId = `complete_${meter.id}`;
+        
+        return `<div class="popup-content" id="popup_${meter.id}">
                     <strong>🚦 العداد: ${meter.meterId}</strong><br>
                     🛠️ الإجراء: ${meter.action}<br>
                     ${extraHtml}
                     <hr>
                     <label style="font-size:12px;">📝 رقم المخالفة (اختياري):</label><br>
-                    <input type="text" id="violation_${meter.id}" placeholder="أدخل رقم المخالفة" style="width:90%; padding:5px; margin-top:5px; border-radius:8px; border:1px solid #ccc;">
+                    <input type="text" id="${inputId}" placeholder="أدخل رقم المخالفة" autocomplete="off">
                     <br>
-                    <button id="complete_${meter.id}" style="background:#27ae60; margin-top:8px;">✅ تم الإنجاز</button>
+                    <button id="${btnId}" style="background:#27ae60;">✅ تم الإنجاز</button>
                     <br>
-                    <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')" style="background:#2980b9; margin-top:5px;">🧭 التنقل</button>
+                    <button class="nav-btn" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${meter.lat},${meter.lng}')">🧭 التنقل</button>
                 </div>`;
+    }
+    
+    // دالة ربط الأحداث بالأزرار - يتم استدعاؤها بعد فتح النافذة
+    function attachPopupEvents(meter) {
+        const btnId = `complete_${meter.id}`;
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            // إزالة أي مستمعات سابقة لتجنب التكرار
+            const newBtn = btn.cloneNode(true);
+            btn.parentNode.replaceChild(newBtn, btn);
+            newBtn.onclick = (e) => {
+                e.stopPropagation();
+                const inputId = `violation_${meter.id}`;
+                const violationInput = document.getElementById(inputId);
+                const violationNumber = violationInput ? violationInput.value : '';
+                completeMeter(meter.id, violationNumber);
+            };
+        }
     }
     
     async function loadTeamData() {
@@ -109,8 +174,10 @@
             const team = data.teams.find(t => t.token === token);
             if (!team) { document.getElementById('teamName').innerText='فريق غير موجود'; return null; }
             document.getElementById('teamName').innerText = team.name;
+            currentTeam = team;
             const teamMeters = data.meters.filter(m => m.teamId === team.id);
             const pendingMeters = teamMeters.filter(m => m.status === 'pending');
+            pendingMetersList = pendingMeters;
             const completedCount = teamMeters.filter(m => m.status === 'completed').length;
             const totalCount = teamMeters.length;
             const actionStats = new Map();
@@ -126,7 +193,11 @@
             }
             document.getElementById('statsContainer').innerHTML = statsHtml;
             return { team, pendingMeters };
-        } catch(e) { document.getElementById('teamName').innerText='خطأ في الاتصال'; return null; }
+        } catch(e) { 
+            document.getElementById('teamName').innerText='خطأ في الاتصال'; 
+            console.error(e);
+            return null; 
+        }
     }
     
     async function refreshMap() {
@@ -134,23 +205,33 @@
         if (!result) return;
         const { team, pendingMeters } = result;
         markersLayer.clearLayers();
+        
+        // رسم منطقة الفريق
         if (team.polygonCoords && team.polygonCoords.length > 2) {
             const latlngs = team.polygonCoords.map(p=>[p.lat,p.lng]);
             L.polygon(latlngs, { color:'#f1c40f', weight:3, fillColor:'#f39c12', fillOpacity:0.2 }).addTo(markersLayer)
                 .bindPopup(`<b>${team.name}</b><br>نطاقك`);
         }
+        
+        // إضافة علامات للعدادات المعلقة فقط
         for (let m of pendingMeters) {
             const icon = createBalloonIcon(m);
             const marker = L.marker([m.lat,m.lng], { icon:icon }).addTo(markersLayer);
-            marker.bindPopup(buildPopupContent(m));
+            // إنشاء محتوى النافذة
+            const popupContent = buildPopupContent(m);
+            marker.bindPopup(popupContent);
+            
+            // ربط الأحداث بعد فتح النافذة
             marker.on('popupopen', () => {
-                const btn = document.getElementById(`complete_${m.id}`);
-                if (btn) btn.onclick = () => {
-                    const violationInput = document.getElementById(`violation_${m.id}`);
-                    const violationNumber = violationInput ? violationInput.value : '';
-                    completeMeter(m.id, violationNumber);
-                };
+                // تأخير بسيط للتأكد من وجود العناصر في DOM
+                setTimeout(() => attachPopupEvents(m), 50);
             });
+        }
+        
+        // تكبير الخريطة لتشمل جميع النقاط إذا وجدت
+        if (pendingMeters.length > 0) {
+            const bounds = L.latLngBounds(pendingMeters.map(m => [m.lat, m.lng]));
+            map.fitBounds(bounds);
         }
     }
     
@@ -162,15 +243,20 @@
             const result = await res.json();
             if (result.success) {
                 alert(`✅ تم تسجيل الإنجاز${result.violationNumber ? ' برقم مخالفة: ' + result.violationNumber : ''}`);
-                refreshMap();
+                // تحديث الخريطة مباشرة
+                await refreshMap();
             } else {
                 alert('❌ فشل الإنجاز: '+ (result.error||''));
             }
-        } catch(e) { alert('خطأ في الاتصال: '+e.message); }
+        } catch(e) { 
+            alert('خطأ في الاتصال: '+e.message); 
+        }
     }
     
+    // بدء التشغيل
     initMap();
     refreshMap();
+    // تحديث تلقائي كل 8 ثواني
     setInterval(refreshMap, 8000);
 </script>
 </body>
