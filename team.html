@@ -36,13 +36,17 @@
         .current-location-pulse { border-radius: 50%; width: 40px; height: 40px; background: rgba(66, 133, 244, 0.3); animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
         
-        /* تثبيت النافذة المنبثقة */
         .leaflet-popup-content-wrapper {
             border-radius: 12px;
         }
         .leaflet-popup-content {
             min-width: 240px;
             margin: 10px 12px;
+        }
+        .note-prefix {
+            font-size: 11px;
+            color: #27ae60;
+            margin-top: 5px;
         }
     </style>
 </head>
@@ -60,7 +64,7 @@
     </div>
     <button class="my-location-btn" id="myLocationBtn">📍 موقعي الحالي</button>
 </div>
-<div class="info-panel">🧭 اضغط على عداد، أدخل رقم المخالفة (اختياري)، ثم اضغط "تم الإنجاز"</div>
+<div class="info-panel">🧭 اضغط على عداد، أدخل رقم المخالفة (سيتم إضافة SWA- تلقائياً)، ثم اضغط "تم الإنجاز"</div>
 
 <script>
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwJzn3X9m2_VaQ2bdSl8n3PTqwfrn8Px47z_ikvL5c4fR2F8r5IHUCZtv0Oeu8q_CF8hg/exec';
@@ -68,8 +72,8 @@
     let currentTeamToken = null;
     let currentLocationMarker = null, currentLocationCircle = null;
     let currentTeam = null;
-    let markersMap = new Map(); // لتخزين المراجع للعلامات
-    let isPopupOpen = false;    // لمنع التحديث أثناء فتح النافذة
+    let markersMap = new Map();
+    let isPopupOpen = false;
     let refreshTimer = null;
     
     function getColorFromAction(action) {
@@ -115,8 +119,6 @@
         markersLayer = L.layerGroup().addTo(map); 
         document.querySelectorAll('.layer-control button').forEach(btn => btn.addEventListener('click', () => switchLayer(btn.dataset.layer))); 
         document.getElementById('myLocationBtn').addEventListener('click', showMyLocation); 
-        
-        // تتبع فتح وإغلاق popup
         map.on('popupopen', () => { isPopupOpen = true; });
         map.on('popupclose', () => { isPopupOpen = false; });
     }
@@ -134,7 +136,6 @@
             for (let [k,v] of Object.entries(meter.extra)) if(v) extraHtml += `<span style="font-weight:bold;">${k}:</span> ${v}<br>`;
             extraHtml += '</div>';
         }
-        // استخدام ID ثابت للعداد مع تجنب التعارض
         const inputId = `popup_violation_${meter.id}`;
         const btnId = `popup_complete_${meter.id}`;
         
@@ -143,8 +144,9 @@
                     🛠️ الإجراء: ${meter.action}<br>
                     ${extraHtml}
                     <hr>
-                    <label style="font-size:12px;">📝 رقم المخالفة (اختياري):</label><br>
-                    <input type="text" id="${inputId}" placeholder="أدخل رقم المخالفة" autocomplete="off" style="width:90%; padding:6px; border-radius:8px; border:1px solid #ccc; margin-top:5px;">
+                    <label style="font-size:12px;">📝 رقم المخالفة (سيتم إضافة SWA- تلقائياً):</label><br>
+                    <input type="text" id="${inputId}" placeholder="أدخل الرقم (مثال: 123)" autocomplete="off" style="width:90%; padding:6px; border-radius:8px; border:1px solid #ccc; margin-top:5px;">
+                    <div class="note-prefix">✍️ سيكون الرقم النهائي: SWA- (الرقم الذي تكتبه)</div>
                     <br>
                     <button id="${btnId}" style="background:#27ae60; margin-top:8px; padding:6px 12px;">✅ تم الإنجاز</button>
                     <br>
@@ -152,36 +154,35 @@
                 </div>`;
     }
     
-    // ربط الأحداث بالزر بعد فتح النافذة
     function attachPopupEvent(meter) {
         const btnId = `popup_complete_${meter.id}`;
         const btn = document.getElementById(btnId);
         if (btn) {
-            // إزالة أي مستمع قديم
             const newBtn = btn.cloneNode(true);
             btn.parentNode.replaceChild(newBtn, btn);
             newBtn.onclick = (e) => {
                 e.stopPropagation();
                 const inputId = `popup_violation_${meter.id}`;
                 const input = document.getElementById(inputId);
-                const violationNumber = input ? input.value : '';
+                let rawNumber = input ? input.value.trim() : '';
+                // إضافة البادئة SWA- تلقائياً
+                let violationNumber = '';
+                if (rawNumber !== '') {
+                    // إزالة أي بادئة سابقة إذا حاول المستخدم إضافتها
+                    rawNumber = rawNumber.replace(/^SWA-\s*/i, '');
+                    violationNumber = `SWA-${rawNumber}`;
+                }
                 completeMeter(meter.id, violationNumber);
             };
         }
     }
     
-    // تحديث العلامات فقط (بدون إعادة إنشاء كل شيء)
     async function refreshMap() {
-        if (isPopupOpen) {
-            // إذا كانت نافذة مفتوحة، نؤجل التحديث
-            return;
-        }
-        
+        if (isPopupOpen) return;
         const result = await loadTeamData();
         if (!result) return;
         const { team, pendingMeters } = result;
         
-        // إزالة العلامات التي لم تعد موجودة (مكتملة)
         const currentMeterIds = new Set(pendingMeters.map(m => m.id));
         for (let [id, marker] of markersMap.entries()) {
             if (!currentMeterIds.has(id)) {
@@ -190,31 +191,22 @@
             }
         }
         
-        // إضافة أو تحديث العلامات الموجودة
         for (let m of pendingMeters) {
             let marker = markersMap.get(m.id);
             if (!marker) {
                 const icon = createBalloonIcon(m);
                 marker = L.marker([m.lat, m.lng], { icon: icon }).addTo(markersLayer);
                 markersMap.set(m.id, marker);
-                // ربط popup
                 marker.bindPopup(buildPopupContent(m));
-                marker.on('popupopen', () => {
-                    setTimeout(() => attachPopupEvent(m), 50);
-                });
+                marker.on('popupopen', () => setTimeout(() => attachPopupEvent(m), 50));
             } else {
-                // تحديث موقع العلامة إذا تغير (نادر)
                 marker.setLatLng([m.lat, m.lng]);
-                // تحديث رمز العلامة
                 const newIcon = createBalloonIcon(m);
                 marker.setIcon(newIcon);
-                // تحديث محتوى popup (قد يتغير الحالة)
                 marker.unbindPopup();
                 marker.bindPopup(buildPopupContent(m));
             }
         }
-        
-        // تحديث الإحصائيات
         updateStats(team, pendingMeters);
     }
     
@@ -241,10 +233,6 @@
     }
     
     function updateStats(team, pendingMeters) {
-        // نحتاج إلى الإجمالي والمنجز
-        // لحساب الإجمالي نستدعي البيانات مرة أخرى أو نخزنها
-        // سنقوم بجلب الإحصائيات من loadTeamData ولكن لتبسيط نستخدم pending فقط مع إجمالي محفوظ
-        // الأفضل تخزين إجمالي عدد العدادت لهذا الفريق
         fetch(`${SCRIPT_URL}?action=getManagerData`).then(res => res.json()).then(data => {
             const teamMeters = data.meters.filter(m => m.teamId === team.id);
             const totalCount = teamMeters.length;
@@ -272,9 +260,7 @@
             const result = await res.json();
             if (result.success) {
                 alert(`✅ تم تسجيل الإنجاز${result.violationNumber ? ' برقم مخالفة: ' + result.violationNumber : ''}`);
-                // إغلاق جميع النوافذ المفتوحة
                 map.closePopup();
-                // تحديث الخريطة فورًا
                 await refreshMap();
             } else {
                 alert('❌ فشل الإنجاز: '+ (result.error||''));
@@ -284,17 +270,13 @@
         }
     }
     
-    // بدء التحديث الدوري مع مراعاة عدم التحديث أثناء فتح النافذة
     function startAutoRefresh() {
         if (refreshTimer) clearInterval(refreshTimer);
         refreshTimer = setInterval(() => {
-            if (!isPopupOpen) {
-                refreshMap();
-            }
-        }, 5000); // كل 5 ثوانٍ
+            if (!isPopupOpen) refreshMap();
+        }, 5000);
     }
     
-    // رسم حدود الفريق إذا وجدت
     async function drawTeamBoundary() {
         const token = new URLSearchParams(location.search).get('token');
         if (!token) return;
@@ -307,7 +289,6 @@
         }
     }
     
-    // بدء التشغيل
     initMap();
     drawTeamBoundary();
     refreshMap().then(() => startAutoRefresh());
